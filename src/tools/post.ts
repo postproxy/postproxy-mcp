@@ -67,7 +67,7 @@ export async function handlePostPublish(
     if (!target) {
       throw createError(ErrorCodes.TARGET_NOT_FOUND, `Target ${targetId} not found`);
     }
-    platformNames.push(target.platform); // platform is the network name (e.g., "twitter")
+    platformNames.push(target.platform); // platform name (e.g., "twitter")
   }
 
   // Generate idempotency key if not provided
@@ -140,7 +140,7 @@ export async function handlePostStatus(
     if (postDetails.platforms) {
       for (const platform of postDetails.platforms) {
         platforms.push({
-          platform: platform.network,
+          platform: platform.platform,
           status: platform.status,
           url: platform.url,
           post_id: platform.post_id,

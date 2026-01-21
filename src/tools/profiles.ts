@@ -35,7 +35,7 @@ export async function handleProfilesList(client: PostProxyClient) {
           allTargets.push({
             id: profile.id, // Already a string
             name: profile.name,
-            platform: profile.network, // API uses "network", but we keep "platform" in output for compatibility
+            platform: profile.platform,
             profile_group_id: profile.profile_group_id, // Already a string
           });
         }

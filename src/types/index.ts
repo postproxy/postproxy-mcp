@@ -13,7 +13,7 @@ export interface ProfileGroup {
 export interface Profile {
   id: string;
   name: string;
-  network: string; // API uses "network" field
+  platform: string;
   profile_group_id: string;
   expires_at: string | null;
   post_count: number;
@@ -42,7 +42,7 @@ export interface CreatePostResponse {
 }
 
 export interface PlatformOutcome {
-  network: string;
+  platform: string;
   status: "pending" | "published" | "failed";
   params: Record<string, any>;
   attempted_at: string | null;
