@@ -1,5 +1,5 @@
 /**
- * Post tools: post.publish, post.status, post.retry
+ * Post tools: post.publish, post.status, post.delete
  */
 
 import type { PostProxyClient } from "../api/client.js";
@@ -199,105 +199,24 @@ export async function handlePostStatus(
   }
 }
 
-export async function handlePostRetry(
+export async function handlePostDelete(
   client: PostProxyClient,
-  args: { job_id: string; platforms?: string[] }
+  args: { job_id: string }
 ) {
   if (!args.job_id) {
     throw createError(ErrorCodes.VALIDATION_ERROR, "job_id is required");
   }
 
   try {
-    // Get current status
-    const statusResult = await handlePostStatus(client, { job_id: args.job_id });
-    const statusData = JSON.parse(statusResult.content[0]?.text || "{}");
-
-    // Determine failed platforms
-    let failedPlatforms = statusData.platforms.filter(
-      (p: any) => p.status === "failed"
-    );
-
-    // If specific platforms requested, filter to those
-    if (args.platforms && args.platforms.length > 0) {
-      const requestedPlatforms = new Set(args.platforms);
-      failedPlatforms = failedPlatforms.filter((p: any) =>
-        requestedPlatforms.has(p.platform)
-      );
-    }
-
-    if (failedPlatforms.length === 0) {
-      throw createError(ErrorCodes.VALIDATION_ERROR, "No failed platforms to retry");
-    }
-
-    // Get original post details
-    const postDetails = await client.getPost(args.job_id);
-
-    // Get profiles to map platform names to profile IDs
-    const profilesResult = await handleProfilesList(client);
-    const profilesData = JSON.parse(profilesResult.content[0]?.text || "{}");
-    const platformToProfilesMap = new Map<string, string[]>();
-    
-    // Build map of platform names to profile IDs
-    for (const target of profilesData.targets || []) {
-      if (!platformToProfilesMap.has(target.platform)) {
-        platformToProfilesMap.set(target.platform, []);
-      }
-      platformToProfilesMap.get(target.platform)!.push(target.id);
-    }
-
-    // Extract platform names from failed platforms
-    const failedPlatformNames = failedPlatforms.map((p: any) => p.platform);
-
-    // Convert platform names to profile IDs (targets)
-    const targetsToRetry: string[] = [];
-    for (const platformName of failedPlatformNames) {
-      const profileIds = platformToProfilesMap.get(platformName) || [];
-      targetsToRetry.push(...profileIds);
-    }
-
-    // If no targets found, we can't retry
-    if (targetsToRetry.length === 0) {
-      throw createError(ErrorCodes.VALIDATION_ERROR, "No profiles found for failed platforms");
-    }
-
-    // Convert target IDs back to platform names for API
-    const targetsMap = new Map<string, any>();
-    for (const target of profilesData.targets || []) {
-      targetsMap.set(target.id, target);
-    }
-    
-    const platformNames: string[] = [];
-    for (const targetId of targetsToRetry) {
-      const target = targetsMap.get(targetId);
-      if (target) {
-        platformNames.push(target.platform);
-      }
-    }
-
-    // Create new post with same content but new idempotency key
-    const newIdempotencyKey = generateIdempotencyKey(
-      postDetails.content,
-      targetsToRetry,
-      postDetails.scheduled_at || undefined
-    );
-
-    const response = await client.createPost({
-      content: postDetails.content,
-      profiles: platformNames,
-      schedule: postDetails.scheduled_at || undefined,
-      media: [], // Media URLs not available in post details response
-      idempotency_key: newIdempotencyKey,
-    });
-
+    await client.deletePost(args.job_id);
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify(
             {
-              job_id: response.id,
-              retried_platforms: failedPlatforms.map((p: any) => p.platform),
-              original_job_id: args.job_id,
+              job_id: args.job_id,
+              deleted: true,
             },
             null,
             2
@@ -306,13 +225,10 @@ export async function handlePostRetry(
       ],
     };
   } catch (error) {
-    logError(error as Error, "post.retry");
-    if ((error as any).code) {
-      throw error;
-    }
+    logError(error as Error, "post.delete");
     throw createError(
-      ErrorCodes.PUBLISH_FAILED,
-      `Failed to retry post: ${(error as Error).message}`
+      ErrorCodes.API_ERROR,
+      `Failed to delete post: ${(error as Error).message}`
     );
   }
 }

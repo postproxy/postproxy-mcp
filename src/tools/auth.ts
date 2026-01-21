@@ -1,5 +1,5 @@
 /**
- * Authentication tools: auth.status, auth.whoami
+ * Authentication tools: auth.status
  */
 
 import type { PostProxyClient } from "../api/client.js";
@@ -7,59 +7,39 @@ import { getApiKey, getBaseUrl } from "../auth/credentials.js";
 import { createError, ErrorCodes } from "../utils/errors.js";
 import { logError, logToolCall } from "../utils/logger.js";
 
-export async function handleAuthStatus() {
+export async function handleAuthStatus(client: PostProxyClient) {
   logToolCall("auth.status", {});
 
   const apiKey = getApiKey();
   const baseUrl = getBaseUrl();
 
+  const result: {
+    authenticated: boolean;
+    base_url: string;
+    profile_groups_count?: number;
+  } = {
+    authenticated: apiKey !== null,
+    base_url: baseUrl,
+  };
+
+  // If authenticated, try to get profile groups count
+  if (apiKey !== null) {
+    try {
+      const profileGroups = await client.getProfileGroups();
+      result.profile_groups_count = profileGroups.length;
+    } catch (error) {
+      // If we can't get profile groups, just return without the count
+      // Don't fail the whole request
+      logError(error as Error, "auth.status");
+    }
+  }
+
   return {
     content: [
       {
         type: "text",
-        text: JSON.stringify(
-          {
-            authenticated: apiKey !== null,
-            base_url: baseUrl,
-          },
-          null,
-          2
-        ),
+        text: JSON.stringify(result, null, 2),
       },
     ],
   };
-}
-
-export async function handleAuthWhoami(client: PostProxyClient) {
-  logToolCall("auth.whoami", {});
-
-  try {
-    // Try to get workspace info - this is optional and may not be supported
-    // We'll try a simple request that might return workspace info
-    const profileGroups = await client.getProfileGroups();
-    
-    // If we got profile groups, we're authenticated
-    // The API might not have a /me endpoint, so we return basic info
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              authenticated: true,
-              profile_groups_count: profileGroups.length,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  } catch (error) {
-    logError(error as Error, "auth.whoami");
-    throw createError(
-      ErrorCodes.API_ERROR,
-      "Unable to retrieve workspace information. The API may not support this endpoint."
-    );
-  }
 }

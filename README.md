@@ -59,7 +59,7 @@ This will guide you through the setup process step by step and register the serv
 
 #### `auth.status`
 
-Check authentication status and API configuration.
+Check authentication status, API configuration, and workspace information.
 
 **Parameters**: None
 
@@ -67,20 +67,7 @@ Check authentication status and API configuration.
 ```json
 {
   "authenticated": true,
-  "base_url": "https://api.postproxy.dev/api"
-}
-```
-
-#### `auth.whoami`
-
-Get current workspace/user information (if supported by API).
-
-**Parameters**: None
-
-**Returns**:
-```json
-{
-  "authenticated": true,
+  "base_url": "https://api.postproxy.dev/api",
   "profile_groups_count": 2
 }
 ```
@@ -108,31 +95,6 @@ List all available social media profiles (targets) for posting.
 ```
 
 ### Post Management
-
-#### `post.validate`
-
-Validate post content, targets, schedule, and media before publishing.
-
-**Parameters**:
-- `content` (string, required): Post content text
-- `targets` (string[], required): Array of target profile IDs
-- `schedule` (string, optional): ISO 8601 scheduled time
-- `media` (string[], optional): Array of media URLs
-
-**Returns**:
-```json
-{
-  "valid": true,
-  "errors": [],
-  "warnings": [],
-  "normalized_payload": {
-    "content": "Post content",
-    "targets": ["profile-123"],
-    "schedule": "2024-01-01T12:00:00Z",
-    "media": ["https://example.com/image.jpg"]
-  }
-}
-```
 
 #### `post.publish`
 
@@ -178,20 +140,18 @@ Get status of a published post by job ID.
 }
 ```
 
-#### `post.retry`
+#### `post.delete`
 
-Retry publishing for failed platforms.
+Delete a post by job ID.
 
 **Parameters**:
-- `job_id` (string, required): Original job ID
-- `platforms` (string[], optional): Array of platform names to retry
+- `job_id` (string, required): Job ID to delete
 
 **Returns**:
 ```json
 {
-  "job_id": "job-456",
-  "retried_platforms": ["twitter"],
-  "original_job_id": "job-123"
+  "job_id": "job-123",
+  "deleted": true
 }
 ```
 
@@ -235,12 +195,6 @@ Check my PostProxy authentication status
 Show me all my available social media profiles
 ```
 
-### Validate a Post
-
-```
-Validate this post: "Hello world!" for accounts ["profile-123", "profile-456"]
-```
-
 ### Publish a Post
 
 ```
@@ -253,10 +207,10 @@ Publish this post: "Check out our new product!" to accounts ["profile-123"]
 What's the status of job job-123?
 ```
 
-### Retry Failed Platforms
+### Delete a Post
 
 ```
-Retry the failed platforms for job job-123
+Delete post job-123
 ```
 
 ### View History

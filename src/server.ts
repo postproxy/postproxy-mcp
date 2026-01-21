@@ -5,12 +5,12 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { PostProxyClient } from "./api/client.js";
-import { handleAuthStatus, handleAuthWhoami } from "./tools/auth.js";
+import { handleAuthStatus } from "./tools/auth.js";
 import { handleProfilesList } from "./tools/profiles.js";
 import {
   handlePostPublish,
   handlePostStatus,
-  handlePostRetry,
+  handlePostDelete,
 } from "./tools/post.js";
 import { handleHistoryList } from "./tools/history.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
@@ -35,15 +35,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
       tools: [
         {
           name: "auth.status",
-          description: "Check authentication status and API configuration",
-          inputSchema: {
-            type: "object",
-            properties: {},
-          },
-        },
-        {
-          name: "auth.whoami",
-          description: "Get current workspace/user information (if supported by API)",
+          description: "Check authentication status, API configuration, and workspace information",
           inputSchema: {
             type: "object",
             properties: {},
@@ -108,19 +100,14 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           },
         },
         {
-          name: "post.retry",
-          description: "Retry publishing for failed platforms",
+          name: "post.delete",
+          description: "Delete a post by job ID",
           inputSchema: {
             type: "object",
             properties: {
               job_id: {
                 type: "string",
-                description: "Original job ID",
-              },
-              platforms: {
-                type: "array",
-                items: { type: "string" },
-                description: "Optional array of platform names to retry",
+                description: "Job ID to delete",
               },
             },
             required: ["job_id"],
@@ -152,17 +139,15 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
     try {
       switch (name) {
         case "auth.status":
-          return await handleAuthStatus();
-        case "auth.whoami":
-          return await handleAuthWhoami(client);
+          return await handleAuthStatus(client);
         case "profiles.list":
           return await handleProfilesList(client);
         case "post.publish":
           return await handlePostPublish(client, args as any);
         case "post.status":
           return await handlePostStatus(client, args as any);
-        case "post.retry":
-          return await handlePostRetry(client, args as any);
+        case "post.delete":
+          return await handlePostDelete(client, args as any);
         case "history.list":
           return await handleHistoryList(client, args as any);
         default:

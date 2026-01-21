@@ -197,4 +197,11 @@ export class PostProxyClient {
     const response = await this.request<any>("GET", path);
     return this.extractArray<Post>(response);
   }
+
+  /**
+   * Delete a post by ID
+   */
+  async deletePost(postId: string): Promise<void> {
+    await this.request<void>("DELETE", `/posts/${postId}`);
+  }
 }
