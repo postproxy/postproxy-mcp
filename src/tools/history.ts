@@ -27,14 +27,17 @@ export async function handleHistoryList(
           const allFailed = post.platforms.every((p) => p.status === "failed");
           const anyPending = post.platforms.some((p) => p.status === "pending");
 
-          if (allPublished) {
+          if (anyPending) {
+            // Only if there are pending platforms - this is truly processing
+            overallStatus = "processing";
+          } else if (allPublished) {
             overallStatus = "complete";
           } else if (allFailed) {
             overallStatus = "failed";
-          } else if (anyPending) {
-            overallStatus = "processing";
           } else {
-            overallStatus = "processing"; // Mixed statuses
+            // Mixed statuses (some published, some failed) - processing is complete
+            // Use "complete" since processing is finished, details are in platforms
+            overallStatus = "complete";
           }
         } else {
           overallStatus = "pending";

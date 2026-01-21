@@ -81,6 +81,10 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
                 type: "boolean",
                 description: "If true, return summary without publishing",
               },
+              draft: {
+                type: "boolean",
+                description: "If true, creates a draft post that won't publish automatically",
+              },
             },
             required: ["content", "targets"],
           },

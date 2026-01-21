@@ -107,6 +107,7 @@ Publish a post to specified targets.
 - `media` (string[], optional): Array of media URLs
 - `idempotency_key` (string, optional): Idempotency key for deduplication
 - `require_confirmation` (boolean, optional): If true, return summary without publishing
+- `draft` (boolean, optional): If true, creates a draft post that won't publish automatically
 
 **Returns**:
 ```json

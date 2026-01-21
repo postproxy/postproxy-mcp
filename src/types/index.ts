@@ -28,6 +28,7 @@ export interface CreatePostParams {
   schedule?: string;
   media?: string[];
   idempotency_key?: string;
+  draft?: boolean; // If true, creates a draft post that won't publish automatically
 }
 
 export interface CreatePostResponse {

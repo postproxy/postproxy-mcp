@@ -146,7 +146,7 @@ export class PostProxyClient {
 
   /**
    * Create a new post
-   * API expects: { post: { body, scheduled_at }, profiles: [...], media: [...] }
+   * API expects: { post: { body, scheduled_at }, draft: boolean, profiles: [...], media: [...] }
    */
   async createPost(params: CreatePostParams): Promise<CreatePostResponse> {
     // Transform to API format
@@ -160,6 +160,10 @@ export class PostProxyClient {
 
     if (params.schedule) {
       apiPayload.post.scheduled_at = params.schedule;
+    }
+
+    if (params.draft !== undefined) {
+      apiPayload.draft = params.draft;
     }
 
     // Add idempotency key as header if provided

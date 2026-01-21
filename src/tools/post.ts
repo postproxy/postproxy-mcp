@@ -18,6 +18,7 @@ export async function handlePostPublish(
     media?: string[];
     idempotency_key?: string;
     require_confirmation?: boolean;
+    draft?: boolean;
   }
 ) {
   // Validate input
@@ -40,6 +41,7 @@ export async function handlePostPublish(
                 content_preview: args.content.substring(0, 100) + (args.content.length > 100 ? "..." : ""),
                 media_count: args.media?.length || 0,
                 schedule_time: args.schedule,
+                draft: args.draft || false,
               },
             },
             null,
@@ -83,6 +85,7 @@ export async function handlePostPublish(
       schedule: args.schedule,
       media: args.media,
       idempotency_key: idempotencyKey,
+      draft: args.draft,
     });
 
     return {
@@ -93,6 +96,8 @@ export async function handlePostPublish(
             {
               job_id: response.id,
               status: response.status,
+              draft: response.draft,
+              scheduled_at: response.scheduled_at,
               created_at: response.created_at,
             },
             null,
@@ -160,14 +165,17 @@ export async function handlePostStatus(
         const allFailed = platforms.every((p) => p.status === "failed");
         const anyPending = platforms.some((p) => p.status === "pending");
 
-        if (allPublished) {
+        if (anyPending) {
+          // Only if there are pending platforms - this is truly processing
+          overallStatus = "processing";
+        } else if (allPublished) {
           overallStatus = "complete";
         } else if (allFailed) {
           overallStatus = "failed";
-        } else if (anyPending) {
-          overallStatus = "processing";
         } else {
-          overallStatus = "processing"; // Mixed statuses
+          // Mixed statuses (some published, some failed) - processing is complete
+          // Use "complete" since processing is finished, details are in platforms
+          overallStatus = "complete";
         }
       }
     } else if (postDetails.status === "pending") {

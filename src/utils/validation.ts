@@ -34,6 +34,7 @@ export const PostPublishSchema = z.object({
   media: z.array(URLSchema).optional(),
   idempotency_key: z.string().optional(),
   require_confirmation: z.boolean().optional(),
+  draft: z.boolean().optional(),
 });
 
 /**
