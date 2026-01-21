@@ -257,7 +257,7 @@ claude mcp add --transport stdio postproxy-mcp --env POSTPROXY_API_KEY=your-api-
 ### Building from Source
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/postproxy/postproxy-mcp
 cd postproxy-mcp
 npm install
 npm run build
