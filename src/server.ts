@@ -11,6 +11,7 @@ import {
   handlePostPublish,
   handlePostStatus,
   handlePostDelete,
+  handlePostPublishDraft,
 } from "./tools/post.js";
 import { handleHistoryList } from "./tools/history.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
@@ -104,6 +105,20 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           },
         },
         {
+          name: "post.publish_draft",
+          description: "Publish a draft post. Only posts with draft status can be published using this endpoint",
+          inputSchema: {
+            type: "object",
+            properties: {
+              job_id: {
+                type: "string",
+                description: "Job ID of the draft post to publish",
+              },
+            },
+            required: ["job_id"],
+          },
+        },
+        {
           name: "post.delete",
           description: "Delete a post by job ID",
           inputSchema: {
@@ -150,6 +165,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handlePostPublish(client, args as any);
         case "post.status":
           return await handlePostStatus(client, args as any);
+        case "post.publish_draft":
+          return await handlePostPublishDraft(client, args as any);
         case "post.delete":
           return await handlePostDelete(client, args as any);
         case "history.list":

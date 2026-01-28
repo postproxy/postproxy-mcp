@@ -68,6 +68,10 @@ export class PostProxyClient {
 
     if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
       options.body = JSON.stringify(body);
+      // Log request payload in debug mode
+      if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+        log(`Request ${method} ${path}`, JSON.stringify(body, null, 2));
+      }
     }
 
     try {
@@ -80,8 +84,27 @@ export class PostProxyClient {
 
         try {
           const errorBody = await response.json();
-          errorMessage = errorBody.message || errorMessage;
-          errorDetails = { ...errorDetails, ...errorBody };
+          
+          // Handle different error response formats
+          if (Array.isArray(errorBody.errors)) {
+            // 422 validation errors: {"errors": ["...", "..."]}
+            errorMessage = errorBody.errors.join("; ");
+            errorDetails = { ...errorDetails, errors: errorBody.errors };
+          } else if (errorBody.message) {
+            // 400 errors: {"status":400,"error":"Bad Request","message":"..."}
+            errorMessage = errorBody.message;
+            errorDetails = { ...errorDetails, ...errorBody };
+          } else if (errorBody.error) {
+            // Some errors use "error" field
+            errorMessage = typeof errorBody.error === "string" 
+              ? errorBody.error 
+              : errorBody.message || errorMessage;
+            errorDetails = { ...errorDetails, ...errorBody };
+          } else {
+            // Fallback: use any available message field
+            errorMessage = errorBody.message || errorBody.error || errorMessage;
+            errorDetails = { ...errorDetails, ...errorBody };
+          }
         } catch {
           // If response is not JSON, use status text
           errorMessage = response.statusText || errorMessage;
@@ -104,7 +127,12 @@ export class PostProxyClient {
       // Handle empty responses
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
-        return await response.json();
+        const jsonResponse = await response.json();
+        // Log response in debug mode
+        if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+          log(`Response ${method} ${path}`, JSON.stringify(jsonResponse, null, 2));
+        }
+        return jsonResponse;
       }
 
       return {} as T;
@@ -146,7 +174,8 @@ export class PostProxyClient {
 
   /**
    * Create a new post
-   * API expects: { post: { body, scheduled_at }, draft: boolean, profiles: [...], media: [...] }
+   * API expects: { post: { body, scheduled_at, draft }, profiles: [...], media: [...] }
+   * Note: draft parameter must be inside the post object, not at the top level
    */
   async createPost(params: CreatePostParams): Promise<CreatePostResponse> {
     // Transform to API format
@@ -162,8 +191,18 @@ export class PostProxyClient {
       apiPayload.post.scheduled_at = params.schedule;
     }
 
+    // Draft parameter must be inside the post object, not at the top level
     if (params.draft !== undefined) {
-      apiPayload.draft = params.draft;
+      apiPayload.post.draft = params.draft;
+    }
+
+    // Log payload in debug mode to troubleshoot draft issues
+    if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+      log("Creating post with payload:", JSON.stringify(apiPayload, null, 2));
+      log(`Draft parameter: requested=${params.draft}, sending=${apiPayload.draft}`);
+      if (params.media && params.media.length > 0) {
+        log(`Post includes ${params.media.length} media file(s)`);
+      }
     }
 
     // Add idempotency key as header if provided
@@ -172,7 +211,17 @@ export class PostProxyClient {
       extraHeaders["Idempotency-Key"] = params.idempotency_key;
     }
 
-    return this.request<CreatePostResponse>("POST", "/posts", apiPayload, extraHeaders);
+    const response = await this.request<CreatePostResponse>("POST", "/posts", apiPayload, extraHeaders);
+
+    // Log response in debug mode, especially draft status
+    if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+      log(`Post created: id=${response.id}, status=${response.status}, draft=${response.draft}`);
+      if (params.draft === true && response.draft === false) {
+        log("WARNING: Draft was requested but API returned draft=false. API may have ignored the draft parameter.");
+      }
+    }
+
+    return response;
   }
 
   /**
@@ -187,8 +236,9 @@ export class PostProxyClient {
    */
   async listPosts(limit?: number, page?: number, perPage?: number): Promise<Post[]> {
     const params = new URLSearchParams();
+    // Map limit to per_page (API expects per_page, not limit)
     if (limit !== undefined) {
-      params.append("limit", String(limit));
+      params.append("per_page", String(limit));
     }
     if (page !== undefined) {
       params.append("page", String(page));
@@ -207,5 +257,13 @@ export class PostProxyClient {
    */
   async deletePost(postId: string): Promise<void> {
     await this.request<void>("DELETE", `/posts/${postId}`);
+  }
+
+  /**
+   * Publish a draft post
+   * Only posts with status "draft" can be published using this endpoint
+   */
+  async publishPost(postId: string): Promise<PostDetails> {
+    return this.request<PostDetails>("POST", `/posts/${postId}/publish`);
   }
 }

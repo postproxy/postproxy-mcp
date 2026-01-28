@@ -77,6 +77,10 @@ export async function handlePostPublish(
     args.schedule
   );
 
+  // Validate draft parameter is correctly passed
+  // Ensure draft is explicitly set (true, false, or undefined) and will be handled correctly
+  const draftValue = args.draft !== undefined ? args.draft : undefined;
+
   // Create post
   try {
     const response = await client.createPost({
@@ -85,24 +89,37 @@ export async function handlePostPublish(
       schedule: args.schedule,
       media: args.media,
       idempotency_key: idempotencyKey,
-      draft: args.draft,
+      draft: draftValue, // Explicitly pass draft value (true, false, or undefined)
     });
+
+    // Check if draft was requested but API ignored it
+    // Use strict boolean comparison to ensure we catch all cases
+    const wasDraftRequested = args.draft === true;
+    const isDraftInResponse = Boolean(response.draft) === true;
+    const wasProcessedImmediately = response.status === "processed" && wasDraftRequested;
+
+    // Draft is ignored if: it was requested AND (it's not in response OR post was processed immediately)
+    const draftIgnored = wasDraftRequested && (!isDraftInResponse || wasProcessedImmediately);
+
+    // Build response object
+    const responseData: any = {
+      job_id: response.id,
+      status: response.status,
+      draft: response.draft,
+      scheduled_at: response.scheduled_at,
+      created_at: response.created_at,
+    };
+
+    // Always include warning field if draft was ignored
+    if (draftIgnored) {
+      responseData.warning = "Warning: Draft was requested but API returned draft: false. The post may have been processed immediately. This can happen if the API does not support drafts with media or other parameters.";
+    }
 
     return {
       content: [
         {
           type: "text",
-          text: JSON.stringify(
-            {
-              job_id: response.id,
-              status: response.status,
-              draft: response.draft,
-              scheduled_at: response.scheduled_at,
-              created_at: response.created_at,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(responseData, null, 2),
         },
       ],
     };
@@ -129,10 +146,10 @@ export async function handlePostStatus(
     // Parse platforms into per-platform format
     const platforms: Array<{
       platform: string;
-      status: "pending" | "published" | "failed";
+      status: "pending" | "processing" | "published" | "failed" | "deleted";
       url?: string;
       post_id?: string;
-      error_reason?: string;
+      error?: string | null;
       attempted_at: string | null;
       insights?: any;
     }> = [];
@@ -144,7 +161,7 @@ export async function handlePostStatus(
           status: platform.status,
           url: platform.url,
           post_id: platform.post_id,
-          error_reason: platform.error_reason,
+          error: platform.error || null,
           attempted_at: platform.attempted_at,
           insights: platform.insights,
         });
@@ -152,21 +169,25 @@ export async function handlePostStatus(
     }
 
     // Determine overall status from post status and platform statuses
-    let overallStatus: "pending" | "processing" | "complete" | "failed" = "pending";
+    let overallStatus: "pending" | "processing" | "complete" | "failed" | "draft" = "pending";
     
-    // Map API statuses to our internal statuses
-    if (postDetails.status === "scheduled") {
+    // Handle draft status first
+    if (postDetails.status === "draft" || postDetails.draft === true) {
+      overallStatus = "draft";
+    } else if (postDetails.status === "scheduled") {
       overallStatus = "pending";
+    } else if (postDetails.status === "processing") {
+      overallStatus = "processing";
     } else if (postDetails.status === "processed") {
       if (platforms.length === 0) {
         overallStatus = "pending";
       } else {
         const allPublished = platforms.every((p) => p.status === "published");
         const allFailed = platforms.every((p) => p.status === "failed");
-        const anyPending = platforms.some((p) => p.status === "pending");
+        const anyPending = platforms.some((p) => p.status === "pending" || p.status === "processing");
 
         if (anyPending) {
-          // Only if there are pending platforms - this is truly processing
+          // Only if there are pending/processing platforms - this is truly processing
           overallStatus = "processing";
         } else if (allPublished) {
           overallStatus = "complete";
@@ -190,6 +211,8 @@ export async function handlePostStatus(
             {
               job_id: args.job_id,
               overall_status: overallStatus,
+              draft: postDetails.draft || false,
+              status: postDetails.status,
               platforms,
             },
             null,
@@ -203,6 +226,62 @@ export async function handlePostStatus(
     throw createError(
       ErrorCodes.API_ERROR,
       `Failed to get post status: ${(error as Error).message}`
+    );
+  }
+}
+
+export async function handlePostPublishDraft(
+  client: PostProxyClient,
+  args: { job_id: string }
+) {
+  if (!args.job_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "job_id is required");
+  }
+
+  try {
+    // First check if the post exists and is a draft
+    const postDetails = await client.getPost(args.job_id);
+    
+    if (!postDetails.draft && postDetails.status !== "draft") {
+      throw createError(
+        ErrorCodes.VALIDATION_ERROR,
+        `Post ${args.job_id} is not a draft and cannot be published using this endpoint`
+      );
+    }
+
+    // Publish the draft post
+    const publishedPost = await client.publishPost(args.job_id);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              job_id: publishedPost.id,
+              status: publishedPost.status,
+              draft: publishedPost.draft,
+              scheduled_at: publishedPost.scheduled_at,
+              created_at: publishedPost.created_at,
+              message: "Draft post published successfully",
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "post.publish_draft");
+    
+    // Re-throw validation errors as-is
+    if (error instanceof Error && "code" in error && error.code === ErrorCodes.VALIDATION_ERROR) {
+      throw error;
+    }
+    
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to publish draft post: ${(error as Error).message}`
     );
   }
 }

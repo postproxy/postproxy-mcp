@@ -33,8 +33,9 @@ export interface CreatePostParams {
 
 export interface CreatePostResponse {
   id: string;
-  content: string;
-  status: string;
+  body?: string; // API returns "body" field
+  content?: string; // Some responses use "content"
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;
@@ -43,7 +44,7 @@ export interface CreatePostResponse {
 
 export interface PlatformOutcome {
   platform: string;
-  status: "pending" | "published" | "failed";
+  status: "pending" | "processing" | "published" | "failed" | "deleted";
   params: Record<string, any>;
   attempted_at: string | null;
   insights?: {
@@ -53,13 +54,14 @@ export interface PlatformOutcome {
   };
   url?: string;
   post_id?: string;
-  error_reason?: string;
+  error?: string | null; // Error message from platform (replaces error_reason)
 }
 
 export interface PostDetails {
   id: string;
-  content: string;
-  status: string;
+  body?: string; // API returns "body" field
+  content?: string; // Some responses use "content"
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;
@@ -69,8 +71,9 @@ export interface PostDetails {
 
 export interface Post {
   id: string;
-  content: string;
-  status: string;
+  body?: string; // API returns "body" field
+  content?: string; // Some responses use "content"
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;

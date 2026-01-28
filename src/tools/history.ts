@@ -16,19 +16,28 @@ export async function handleHistoryList(
     const posts = await client.listPosts(limit);
 
     const jobs = posts.map((post) => {
+      // Get content from either "body" or "content" field (API uses "body")
+      const content = post.body || post.content || "";
+      
       // Determine overall status from post status
       let overallStatus = "unknown";
-      if (post.status === "scheduled") {
+      
+      // Handle draft status first
+      if (post.status === "draft" || post.draft === true) {
+        overallStatus = "draft";
+      } else if (post.status === "scheduled") {
         overallStatus = "pending";
+      } else if (post.status === "processing") {
+        overallStatus = "processing";
       } else if (post.status === "processed") {
         // Check platform statuses to determine overall status
         if (post.platforms && post.platforms.length > 0) {
           const allPublished = post.platforms.every((p) => p.status === "published");
           const allFailed = post.platforms.every((p) => p.status === "failed");
-          const anyPending = post.platforms.some((p) => p.status === "pending");
+          const anyPending = post.platforms.some((p) => p.status === "pending" || p.status === "processing");
 
           if (anyPending) {
-            // Only if there are pending platforms - this is truly processing
+            // Only if there are pending/processing platforms - this is truly processing
             overallStatus = "processing";
           } else if (allPublished) {
             overallStatus = "complete";
@@ -48,9 +57,10 @@ export async function handleHistoryList(
 
       return {
         job_id: post.id,
-        content_preview: post.content.substring(0, 100) + (post.content.length > 100 ? "..." : ""),
+        content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
         created_at: post.created_at,
         overall_status: overallStatus,
+        draft: post.draft || false,
         platforms_count: post.platforms?.length || 0,
       };
     });
