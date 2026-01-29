@@ -1,0 +1,749 @@
+/**
+ * PostProxy MCP - Cloudflare Worker Entry Point
+ *
+ * This worker provides the same MCP functionality as the local stdio version,
+ * but runs on Cloudflare Workers for remote access.
+ *
+ * API key is passed via X-PostProxy-API-Key header from the client.
+ */
+
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+interface Env {
+  POSTPROXY_BASE_URL: string;
+}
+
+interface ProfileGroup {
+  id: string;
+  name: string;
+  profiles_count: number;
+}
+
+interface Profile {
+  id: string;
+  name: string;
+  platform: string;
+  profile_group_id: string;
+}
+
+interface PlatformOutcome {
+  platform: string;
+  status: "pending" | "processing" | "published" | "failed" | "deleted";
+  url?: string;
+  post_id?: string;
+  error?: string | null;
+  attempted_at: string | null;
+  insights?: any;
+}
+
+interface Post {
+  id: string;
+  body?: string;
+  content?: string;
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
+  draft: boolean;
+  scheduled_at: string | null;
+  created_at: string;
+  platforms: PlatformOutcome[];
+}
+
+export default class PostProxyMCP extends WorkerEntrypoint<Env> {
+  private apiKey: string | null = null;
+
+  /**
+   * Get API key from request context
+   */
+  private getApiKey(): string {
+    if (!this.apiKey) {
+      throw new Error("API key not configured. Pass X-PostProxy-API-Key header.");
+    }
+    return this.apiKey;
+  }
+
+  /**
+   * Make an HTTP request to the PostProxy API
+   */
+  private async apiRequest<T>(
+    method: string,
+    path: string,
+    body?: any,
+    extraHeaders?: Record<string, string>
+  ): Promise<T> {
+    const baseUrl = this.env.POSTPROXY_BASE_URL.replace(/\/$/, "");
+    const url = `${baseUrl}${path}`;
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.getApiKey()}`,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+
+    if (extraHeaders) {
+      Object.assign(headers, extraHeaders);
+    }
+
+    const options: RequestInit = {
+      method,
+      headers,
+    };
+
+    if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
+      options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      let errorMessage = `API request failed with status ${response.status}`;
+      try {
+        const errorBody = await response.json() as any;
+        if (Array.isArray(errorBody.errors)) {
+          errorMessage = errorBody.errors.join("; ");
+        } else if (errorBody.message) {
+          errorMessage = errorBody.message;
+        } else if (errorBody.error) {
+          errorMessage = typeof errorBody.error === "string" ? errorBody.error : errorMessage;
+        }
+      } catch {
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+
+    return {} as T;
+  }
+
+  /**
+   * Extract array from API response
+   */
+  private extractArray<T>(response: any): T[] {
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (response && typeof response === "object" && Array.isArray(response.data)) {
+      return response.data;
+    }
+    return [];
+  }
+
+  /**
+   * Get all profiles
+   */
+  private async getAllProfiles(): Promise<Profile[]> {
+    const groupsResponse = await this.apiRequest<any>("GET", "/profile_groups/");
+    const groups = this.extractArray<ProfileGroup>(groupsResponse);
+
+    const allProfiles: Profile[] = [];
+    for (const group of groups) {
+      const profilesResponse = await this.apiRequest<any>("GET", `/profiles?group_id=${group.id}`);
+      const profiles = this.extractArray<Profile>(profilesResponse);
+      allProfiles.push(...profiles);
+    }
+
+    return allProfiles;
+  }
+
+  /**
+   * Generate idempotency key from post data
+   */
+  private async generateIdempotencyKey(
+    content: string,
+    targets: string[],
+    schedule?: string
+  ): Promise<string> {
+    const normalizedContent = content.trim();
+    const normalizedTargets = [...targets].sort();
+    const normalizedSchedule = schedule || "";
+
+    const data = JSON.stringify({
+      content: normalizedContent,
+      targets: normalizedTargets,
+      schedule: normalizedSchedule,
+    });
+
+    // Use Web Crypto API (available in Workers)
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(data);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  /**
+   * Determine overall status from post and platform statuses
+   */
+  private determineOverallStatus(
+    post: Post
+  ): "pending" | "processing" | "complete" | "failed" | "draft" {
+    if (post.status === "draft" || post.draft === true) {
+      return "draft";
+    }
+    if (post.status === "scheduled") {
+      return "pending";
+    }
+    if (post.status === "processing") {
+      return "processing";
+    }
+    if (post.status === "processed") {
+      const platforms = post.platforms || [];
+      if (platforms.length === 0) {
+        return "pending";
+      }
+      const allPublished = platforms.every((p) => p.status === "published");
+      const allFailed = platforms.every((p) => p.status === "failed");
+      const anyPending = platforms.some((p) => p.status === "pending" || p.status === "processing");
+
+      if (anyPending) {
+        return "processing";
+      } else if (allPublished) {
+        return "complete";
+      } else if (allFailed) {
+        return "failed";
+      } else {
+        return "complete";
+      }
+    }
+    if (post.status === "pending") {
+      return "pending";
+    }
+    return "pending";
+  }
+
+  /**
+   * Check authentication status, API configuration, and workspace information
+   * @return {Promise<string>} Authentication status and workspace info as JSON
+   */
+  async authStatus(): Promise<string> {
+    const hasApiKey = !!this.apiKey;
+    const result: {
+      authenticated: boolean;
+      base_url: string;
+      profile_groups_count?: number;
+    } = {
+      authenticated: hasApiKey,
+      base_url: this.env.POSTPROXY_BASE_URL,
+    };
+
+    if (hasApiKey) {
+      try {
+        const groupsResponse = await this.apiRequest<any>("GET", "/profile_groups/");
+        const groups = this.extractArray<ProfileGroup>(groupsResponse);
+        result.profile_groups_count = groups.length;
+      } catch {
+        // Ignore errors, just return without count
+      }
+    }
+
+    return JSON.stringify(result, null, 2);
+  }
+
+  /**
+   * List all available social media profiles (targets) for posting
+   * @return {Promise<string>} List of available profiles as JSON
+   */
+  async profilesList(): Promise<string> {
+    this.getApiKey(); // Validate API key is present
+
+    const profiles = await this.getAllProfiles();
+    const targets = profiles.map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      platform: profile.platform,
+      profile_group_id: profile.profile_group_id,
+    }));
+
+    return JSON.stringify({ targets }, null, 2);
+  }
+
+  /**
+   * Publish a post to specified targets
+   * @param content {string} Post content text
+   * @param targets {string} Comma-separated list of target profile IDs
+   * @param schedule {string} Optional ISO 8601 scheduled time
+   * @param media {string} Optional comma-separated list of media URLs
+   * @param idempotency_key {string} Optional idempotency key for deduplication
+   * @param require_confirmation {boolean} If true, return summary without publishing
+   * @param draft {boolean} If true, creates a draft post that won't publish automatically
+   * @param platforms {string} Optional JSON string of platform-specific parameters
+   * @return {Promise<string>} Post creation result as JSON
+   */
+  async postPublish(
+    content: string,
+    targets: string,
+    schedule?: string,
+    media?: string,
+    idempotency_key?: string,
+    require_confirmation?: boolean,
+    draft?: boolean,
+    platforms?: string
+  ): Promise<string> {
+    this.getApiKey(); // Validate API key is present
+
+    // Parse comma-separated values
+    const targetIds = targets.split(",").map((t) => t.trim()).filter(Boolean);
+    const mediaUrls = media ? media.split(",").map((m) => m.trim()).filter(Boolean) : [];
+
+    // Parse platforms JSON if provided
+    let platformParams: Record<string, Record<string, any>> | undefined;
+    if (platforms) {
+      try {
+        platformParams = JSON.parse(platforms);
+      } catch {
+        throw new Error("Invalid platforms parameter: must be valid JSON");
+      }
+    }
+
+    // Validate input
+    if (!content || content.trim() === "") {
+      throw new Error("Content cannot be empty");
+    }
+    if (targetIds.length === 0) {
+      throw new Error("At least one target is required");
+    }
+
+    // If require_confirmation, return summary without publishing
+    if (require_confirmation) {
+      return JSON.stringify(
+        {
+          summary: {
+            targets: targetIds,
+            content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
+            media_count: mediaUrls.length,
+            schedule_time: schedule,
+            draft: draft || false,
+            platforms: platformParams || {},
+          },
+        },
+        null,
+        2
+      );
+    }
+
+    // Get profiles to convert target IDs to platform names
+    const profiles = await this.getAllProfiles();
+    const profilesMap = new Map<string, Profile>();
+    for (const profile of profiles) {
+      profilesMap.set(profile.id, profile);
+    }
+
+    // Convert target IDs to platform names
+    const platformNames: string[] = [];
+    for (const targetId of targetIds) {
+      const profile = profilesMap.get(targetId);
+      if (!profile) {
+        throw new Error(`Target ${targetId} not found`);
+      }
+      platformNames.push(profile.platform);
+    }
+
+    // Validate platforms keys match target platforms
+    if (platformParams) {
+      const invalidPlatforms = Object.keys(platformParams).filter(
+        (key) => !platformNames.includes(key)
+      );
+      if (invalidPlatforms.length > 0) {
+        throw new Error(
+          `Platform parameters specified for platforms not in targets: ${invalidPlatforms.join(", ")}. Available platforms: ${platformNames.join(", ")}`
+        );
+      }
+    }
+
+    // Generate idempotency key if not provided
+    const finalIdempotencyKey =
+      idempotency_key || (await this.generateIdempotencyKey(content, targetIds, schedule));
+
+    // Create post
+    const apiPayload: any = {
+      post: {
+        body: content,
+      },
+      profiles: platformNames,
+      media: mediaUrls,
+    };
+
+    if (schedule) {
+      apiPayload.post.scheduled_at = schedule;
+    }
+
+    if (draft !== undefined) {
+      apiPayload.post.draft = draft;
+    }
+
+    if (platformParams && Object.keys(platformParams).length > 0) {
+      apiPayload.platforms = platformParams;
+    }
+
+    const extraHeaders: Record<string, string> = {
+      "Idempotency-Key": finalIdempotencyKey,
+    };
+
+    const response = await this.apiRequest<any>("POST", "/posts", apiPayload, extraHeaders);
+
+    // Check if draft was requested but ignored
+    const wasDraftRequested = draft === true;
+    const isDraftInResponse = Boolean(response.draft) === true;
+    const wasProcessedImmediately = response.status === "processed" && wasDraftRequested;
+    const draftIgnored = wasDraftRequested && (!isDraftInResponse || wasProcessedImmediately);
+
+    const responseData: any = {
+      job_id: response.id,
+      status: response.status,
+      draft: response.draft,
+      scheduled_at: response.scheduled_at,
+      created_at: response.created_at,
+    };
+
+    if (draftIgnored) {
+      responseData.warning = "Warning: Draft was requested but API returned draft: false. The post may have been processed immediately.";
+    }
+
+    return JSON.stringify(responseData, null, 2);
+  }
+
+  /**
+   * Get status of a published post by job ID
+   * @param job_id {string} Job ID from post.publish response
+   * @return {Promise<string>} Post status as JSON
+   */
+  async postStatus(job_id: string): Promise<string> {
+    if (!job_id) {
+      throw new Error("job_id is required");
+    }
+
+    const postDetails = await this.apiRequest<Post>("GET", `/posts/${job_id}`);
+
+    const platforms = (postDetails.platforms || []).map((platform) => ({
+      platform: platform.platform,
+      status: platform.status,
+      url: platform.url,
+      post_id: platform.post_id,
+      error: platform.error || null,
+      attempted_at: platform.attempted_at,
+      insights: platform.insights,
+    }));
+
+    const overallStatus = this.determineOverallStatus(postDetails);
+
+    return JSON.stringify(
+      {
+        job_id: job_id,
+        overall_status: overallStatus,
+        draft: postDetails.draft || false,
+        status: postDetails.status,
+        platforms,
+      },
+      null,
+      2
+    );
+  }
+
+  /**
+   * Publish a draft post
+   * @param job_id {string} Job ID of the draft post to publish
+   * @return {Promise<string>} Published post result as JSON
+   */
+  async postPublishDraft(job_id: string): Promise<string> {
+    if (!job_id) {
+      throw new Error("job_id is required");
+    }
+
+    // First check if the post exists and is a draft
+    const postDetails = await this.apiRequest<Post>("GET", `/posts/${job_id}`);
+
+    if (!postDetails.draft && postDetails.status !== "draft") {
+      throw new Error(`Post ${job_id} is not a draft and cannot be published using this endpoint`);
+    }
+
+    // Publish the draft post
+    const publishedPost = await this.apiRequest<Post>("POST", `/posts/${job_id}/publish`);
+
+    return JSON.stringify(
+      {
+        job_id: publishedPost.id,
+        status: publishedPost.status,
+        draft: publishedPost.draft,
+        scheduled_at: publishedPost.scheduled_at,
+        created_at: publishedPost.created_at,
+        message: "Draft post published successfully",
+      },
+      null,
+      2
+    );
+  }
+
+  /**
+   * Delete a post by job ID
+   * @param job_id {string} Job ID to delete
+   * @return {Promise<string>} Deletion confirmation as JSON
+   */
+  async postDelete(job_id: string): Promise<string> {
+    if (!job_id) {
+      throw new Error("job_id is required");
+    }
+
+    await this.apiRequest<void>("DELETE", `/posts/${job_id}`);
+
+    return JSON.stringify(
+      {
+        job_id: job_id,
+        deleted: true,
+      },
+      null,
+      2
+    );
+  }
+
+  /**
+   * List recent post jobs
+   * @param limit {number} Maximum number of jobs to return (default: 10)
+   * @return {Promise<string>} List of recent jobs as JSON
+   */
+  async historyList(limit?: number): Promise<string> {
+    const effectiveLimit = limit || 10;
+
+    const response = await this.apiRequest<any>("GET", `/posts?per_page=${effectiveLimit}`);
+    const posts = this.extractArray<Post>(response);
+
+    const jobs = posts.map((post) => {
+      const overallStatus = this.determineOverallStatus(post);
+      const content = post.body || post.content || "";
+
+      return {
+        job_id: post.id,
+        content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
+        created_at: post.created_at,
+        overall_status: overallStatus,
+        draft: post.draft || false,
+        platforms_count: post.platforms?.length || 0,
+      };
+    });
+
+    return JSON.stringify({ jobs }, null, 2);
+  }
+
+  /**
+   * MCP tool definitions
+   */
+  private getTools() {
+    return [
+      {
+        name: "authStatus",
+        description: "Check authentication status, API configuration, and workspace information",
+        inputSchema: { type: "object", properties: {}, required: [] },
+      },
+      {
+        name: "profilesList",
+        description: "List all available social media profiles (targets) for posting",
+        inputSchema: { type: "object", properties: {}, required: [] },
+      },
+      {
+        name: "postPublish",
+        description: "Publish a post to specified targets",
+        inputSchema: {
+          type: "object",
+          properties: {
+            content: { type: "string", description: "Post content text" },
+            targets: { type: "string", description: "Comma-separated list of target profile IDs" },
+            schedule: { type: "string", description: "Optional ISO 8601 scheduled time" },
+            media: { type: "string", description: "Optional comma-separated list of media URLs" },
+            idempotency_key: { type: "string", description: "Optional idempotency key for deduplication" },
+            require_confirmation: { type: "boolean", description: "If true, return summary without publishing" },
+            draft: { type: "boolean", description: "If true, creates a draft post" },
+            platforms: { type: "string", description: "Optional JSON string of platform-specific parameters" },
+          },
+          required: ["content", "targets"],
+        },
+      },
+      {
+        name: "postStatus",
+        description: "Get status of a published post by job ID",
+        inputSchema: {
+          type: "object",
+          properties: {
+            job_id: { type: "string", description: "Job ID from post.publish response" },
+          },
+          required: ["job_id"],
+        },
+      },
+      {
+        name: "postPublishDraft",
+        description: "Publish a draft post",
+        inputSchema: {
+          type: "object",
+          properties: {
+            job_id: { type: "string", description: "Job ID of the draft post to publish" },
+          },
+          required: ["job_id"],
+        },
+      },
+      {
+        name: "postDelete",
+        description: "Delete a post by job ID",
+        inputSchema: {
+          type: "object",
+          properties: {
+            job_id: { type: "string", description: "Job ID to delete" },
+          },
+          required: ["job_id"],
+        },
+      },
+      {
+        name: "historyList",
+        description: "List recent post jobs",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Maximum number of jobs to return (default: 10)" },
+          },
+          required: [],
+        },
+      },
+    ];
+  }
+
+  /**
+   * Handle MCP JSON-RPC request
+   */
+  private async handleMcpRequest(body: any): Promise<any> {
+    const { jsonrpc, method, params, id } = body;
+
+    if (jsonrpc !== "2.0") {
+      return { jsonrpc: "2.0", error: { code: -32600, message: "Invalid Request" }, id };
+    }
+
+    switch (method) {
+      case "initialize":
+        return {
+          jsonrpc: "2.0",
+          result: {
+            protocolVersion: "2024-11-05",
+            capabilities: { tools: {} },
+            serverInfo: { name: "postproxy-mcp", version: "0.1.0" },
+          },
+          id,
+        };
+
+      case "notifications/initialized":
+        return null; // No response for notifications
+
+      case "tools/list":
+        return {
+          jsonrpc: "2.0",
+          result: { tools: this.getTools() },
+          id,
+        };
+
+      case "tools/call": {
+        const { name, arguments: args } = params || {};
+        try {
+          let result: string;
+          switch (name) {
+            case "authStatus":
+              result = await this.authStatus();
+              break;
+            case "profilesList":
+              result = await this.profilesList();
+              break;
+            case "postPublish":
+              result = await this.postPublish(
+                args.content,
+                args.targets,
+                args.schedule,
+                args.media,
+                args.idempotency_key,
+                args.require_confirmation,
+                args.draft,
+                args.platforms
+              );
+              break;
+            case "postStatus":
+              result = await this.postStatus(args.job_id);
+              break;
+            case "postPublishDraft":
+              result = await this.postPublishDraft(args.job_id);
+              break;
+            case "postDelete":
+              result = await this.postDelete(args.job_id);
+              break;
+            case "historyList":
+              result = await this.historyList(args?.limit);
+              break;
+            default:
+              return {
+                jsonrpc: "2.0",
+                error: { code: -32601, message: `Unknown tool: ${name}` },
+                id,
+              };
+          }
+          return {
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: result }] },
+            id,
+          };
+        } catch (e: any) {
+          return {
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: `Error: ${e.message}` }], isError: true },
+            id,
+          };
+        }
+      }
+
+      default:
+        return {
+          jsonrpc: "2.0",
+          error: { code: -32601, message: `Method not found: ${method}` },
+          id,
+        };
+    }
+  }
+
+  /**
+   * Handle incoming requests
+   */
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Only handle /mcp path
+    if (url.pathname !== "/mcp") {
+      return new Response("Not Found", { status: 404 });
+    }
+
+    // Extract API key from header or query parameter
+    this.apiKey = request.headers.get("X-PostProxy-API-Key") || url.searchParams.get("api_key");
+
+    // Handle POST requests (MCP JSON-RPC)
+    if (request.method === "POST") {
+      try {
+        const body = await request.json();
+        const result = await this.handleMcpRequest(body);
+
+        // Notifications don't get a response
+        if (result === null) {
+          return new Response(null, { status: 204 });
+        }
+
+        return Response.json(result);
+      } catch (e: any) {
+        return Response.json({
+          jsonrpc: "2.0",
+          error: { code: -32700, message: "Parse error" },
+          id: null,
+        }, { status: 400 });
+      }
+    }
+
+    // GET request - return server info
+    return Response.json({
+      name: "postproxy-mcp",
+      version: "0.1.0",
+      description: "MCP server for PostProxy API",
+      tools: this.getTools().map(t => t.name),
+    });
+  }
+}

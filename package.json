@@ -11,6 +11,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy",
     "prepare": "npm run build"
   },
   "keywords": [
@@ -22,11 +24,14 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "workers-mcp": "0.1.0-3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250124.0",
     "@types/node": "^20.10.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "wrangler": "^4.61.0"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -1,0 +1,11 @@
+name = "postproxy-mcp"
+main = "worker/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+  { pattern = "mcp.postproxy.dev", custom_domain = true }
+]
+
+[vars]
+POSTPROXY_BASE_URL = "https://api.postproxy.dev/api"
