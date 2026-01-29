@@ -19,8 +19,24 @@
     "mcp",
     "postproxy",
     "claude",
-    "social-media"
+    "social-media",
+    "social-media",
+    "scheduling",
+    "twitter",
+    "facebook",
+    "instagram",
+    "automation",
+    "linkedin",
+    "youtube",
+    "tiktok"
+    "threads",
+    "ai"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/postproxy/postproxy-mcp"
+  },
+  "homepage": "https://www.postproxy.dev/",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
