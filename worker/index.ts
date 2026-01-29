@@ -149,6 +149,117 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
+   * Get MIME type based on file extension
+   */
+  private getMimeType(filename: string): string {
+    const ext = filename.toLowerCase().split(".").pop();
+    const mimeTypes: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+      mp4: "video/mp4",
+      mov: "video/quicktime",
+      avi: "video/x-msvideo",
+      webm: "video/webm",
+    };
+    return mimeTypes[ext || ""] || "application/octet-stream";
+  }
+
+  /**
+   * Create post with file uploads using multipart/form-data
+   */
+  private async createPostWithFiles(
+    content: string,
+    platformNames: string[],
+    mediaFiles: Array<{ filename: string; data: string; content_type?: string }>,
+    schedule?: string,
+    draft?: boolean,
+    platformParams?: Record<string, Record<string, any>>,
+    idempotencyKey?: string
+  ): Promise<any> {
+    const baseUrl = this.env.POSTPROXY_BASE_URL.replace(/\/$/, "");
+    const url = `${baseUrl}/posts`;
+    const formData = new FormData();
+
+    // Add post body
+    formData.append("post[body]", content);
+
+    // Add scheduled_at if provided
+    if (schedule) {
+      formData.append("post[scheduled_at]", schedule);
+    }
+
+    // Add draft if provided
+    if (draft !== undefined) {
+      formData.append("post[draft]", String(draft));
+    }
+
+    // Add profiles (platform names)
+    for (const profile of platformNames) {
+      formData.append("profiles[]", profile);
+    }
+
+    // Add media files from base64
+    for (const file of mediaFiles) {
+      try {
+        // Decode base64 to binary
+        const binaryString = atob(file.data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const mimeType = file.content_type || this.getMimeType(file.filename);
+        const blob = new Blob([bytes], { type: mimeType });
+        formData.append("media[]", blob, file.filename);
+      } catch (error) {
+        throw new Error(`Failed to decode file ${file.filename}: ${(error as Error).message}`);
+      }
+    }
+
+    // Add platform-specific parameters as JSON
+    if (platformParams && Object.keys(platformParams).length > 0) {
+      formData.append("platforms", JSON.stringify(platformParams));
+    }
+
+    // Build headers
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.getApiKey()}`,
+    };
+
+    if (idempotencyKey) {
+      headers["Idempotency-Key"] = idempotencyKey;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `API request failed with status ${response.status}`;
+      try {
+        const errorBody = await response.json() as any;
+        if (Array.isArray(errorBody.errors)) {
+          errorMessage = errorBody.errors.join("; ");
+        } else if (errorBody.message) {
+          errorMessage = errorBody.message;
+        } else if (errorBody.error) {
+          errorMessage = typeof errorBody.error === "string" ? errorBody.error : errorMessage;
+        }
+      } catch {
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  }
+
+  /**
    * Generate idempotency key from post data
    */
   private async generateIdempotencyKey(
@@ -270,6 +381,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
    * @param require_confirmation {boolean} If true, return summary without publishing
    * @param draft {boolean} If true, creates a draft post that won't publish automatically
    * @param platforms {string} Optional JSON string of platform-specific parameters
+   * @param media_files {string} Optional JSON array of file objects with {filename, data (base64), content_type?}
    * @return {Promise<string>} Post creation result as JSON
    */
   async postPublish(
@@ -280,13 +392,35 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     idempotency_key?: string,
     require_confirmation?: boolean,
     draft?: boolean,
-    platforms?: string
+    platforms?: string,
+    media_files?: string
   ): Promise<string> {
     this.getApiKey(); // Validate API key is present
 
     // Parse comma-separated values
     const targetIds = targets.split(",").map((t) => t.trim()).filter(Boolean);
     const mediaUrls = media ? media.split(",").map((m) => m.trim()).filter(Boolean) : [];
+
+    // Parse media_files JSON if provided
+    let mediaFilesArray: Array<{ filename: string; data: string; content_type?: string }> = [];
+    if (media_files) {
+      try {
+        mediaFilesArray = JSON.parse(media_files);
+        if (!Array.isArray(mediaFilesArray)) {
+          throw new Error("media_files must be an array");
+        }
+        for (const file of mediaFilesArray) {
+          if (!file.filename || !file.data) {
+            throw new Error("Each media file must have 'filename' and 'data' (base64) properties");
+          }
+        }
+      } catch (e: any) {
+        if (e.message.includes("media_files")) {
+          throw e;
+        }
+        throw new Error("Invalid media_files parameter: must be valid JSON array");
+      }
+    }
 
     // Parse platforms JSON if provided
     let platformParams: Record<string, Record<string, any>> | undefined;
@@ -313,7 +447,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           summary: {
             targets: targetIds,
             content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
-            media_count: mediaUrls.length,
+            media_count: mediaUrls.length + mediaFilesArray.length,
+            media_files_count: mediaFilesArray.length,
             schedule_time: schedule,
             draft: draft || false,
             platforms: platformParams || {},
@@ -357,32 +492,47 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const finalIdempotencyKey =
       idempotency_key || (await this.generateIdempotencyKey(content, targetIds, schedule));
 
-    // Create post
-    const apiPayload: any = {
-      post: {
-        body: content,
-      },
-      profiles: platformNames,
-      media: mediaUrls,
-    };
+    let response: any;
 
-    if (schedule) {
-      apiPayload.post.scheduled_at = schedule;
+    // Use multipart upload if media files are provided
+    if (mediaFilesArray.length > 0) {
+      response = await this.createPostWithFiles(
+        content,
+        platformNames,
+        mediaFilesArray,
+        schedule,
+        draft,
+        platformParams,
+        finalIdempotencyKey
+      );
+    } else {
+      // Create post with JSON (URLs only)
+      const apiPayload: any = {
+        post: {
+          body: content,
+        },
+        profiles: platformNames,
+        media: mediaUrls,
+      };
+
+      if (schedule) {
+        apiPayload.post.scheduled_at = schedule;
+      }
+
+      if (draft !== undefined) {
+        apiPayload.post.draft = draft;
+      }
+
+      if (platformParams && Object.keys(platformParams).length > 0) {
+        apiPayload.platforms = platformParams;
+      }
+
+      const extraHeaders: Record<string, string> = {
+        "Idempotency-Key": finalIdempotencyKey,
+      };
+
+      response = await this.apiRequest<any>("POST", "/posts", apiPayload, extraHeaders);
     }
-
-    if (draft !== undefined) {
-      apiPayload.post.draft = draft;
-    }
-
-    if (platformParams && Object.keys(platformParams).length > 0) {
-      apiPayload.platforms = platformParams;
-    }
-
-    const extraHeaders: Record<string, string> = {
-      "Idempotency-Key": finalIdempotencyKey,
-    };
-
-    const response = await this.apiRequest<any>("POST", "/posts", apiPayload, extraHeaders);
 
     // Check if draft was requested but ignored
     const wasDraftRequested = draft === true;
@@ -555,6 +705,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
             require_confirmation: { type: "boolean", description: "If true, return summary without publishing" },
             draft: { type: "boolean", description: "If true, creates a draft post" },
             platforms: { type: "string", description: "Optional JSON string of platform-specific parameters" },
+            media_files: { type: "string", description: "Optional JSON array of file objects for direct upload. Each object must have 'filename' and 'data' (base64-encoded file content), optionally 'content_type'. Example: [{\"filename\":\"photo.jpg\",\"data\":\"base64...\"}]" },
           },
           required: ["content", "targets"],
         },
@@ -658,7 +809,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
                 args.idempotency_key,
                 args.require_confirmation,
                 args.draft,
-                args.platforms
+                args.platforms,
+                args.media_files
               );
               break;
             case "postStatus":
