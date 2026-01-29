@@ -25,6 +25,43 @@ export const URLSchema = z.string().url({
 });
 
 /**
+ * Check if a string looks like a file path
+ */
+export function isFilePath(value: string): boolean {
+  // Absolute paths, relative paths, or home directory paths
+  return (
+    value.startsWith("/") ||
+    value.startsWith("./") ||
+    value.startsWith("../") ||
+    value.startsWith("~/") ||
+    // Windows absolute paths
+    /^[A-Za-z]:[\\/]/.test(value)
+  );
+}
+
+/**
+ * Schema for media items (URLs or file paths)
+ */
+export const MediaItemSchema = z.string().refine(
+  (value) => {
+    // Allow file paths
+    if (isFilePath(value)) {
+      return true;
+    }
+    // Or valid URLs
+    try {
+      new URL(value);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  {
+    message: "Must be a valid URL or file path",
+  }
+);
+
+/**
  * Platform-specific validation schemas
  */
 
@@ -112,7 +149,7 @@ export const PostPublishSchema = z.object({
   content: z.string().min(1, "Content cannot be empty"),
   targets: z.array(z.string()).min(1, "At least one target is required"),
   schedule: ISO8601DateSchema.optional(),
-  media: z.array(URLSchema).optional(),
+  media: z.array(MediaItemSchema).optional(),
   idempotency_key: z.string().optional(),
   require_confirmation: z.boolean().optional(),
   draft: z.boolean().optional(),

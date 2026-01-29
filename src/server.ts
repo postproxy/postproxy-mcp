@@ -60,7 +60,7 @@ export const TOOL_DEFINITIONS = [
         media: {
           type: "array",
           items: { type: "string" },
-          description: "Optional array of media URLs (images or videos)",
+          description: "Optional array of media URLs or local file paths (images or videos). File paths can be absolute (/path/to/file.jpg), relative (./image.png), or use ~ for home directory (~/Pictures/photo.jpg)",
         },
         idempotency_key: {
           type: "string",

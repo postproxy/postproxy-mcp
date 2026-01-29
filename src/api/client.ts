@@ -2,6 +2,9 @@
  * PostProxy API HTTP client
  */
 
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
+import { homedir } from "node:os";
 import type {
   ProfileGroup,
   Profile,
@@ -12,6 +15,7 @@ import type {
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
+import { isFilePath } from "../utils/validation.js";
 
 export class PostProxyClient {
   private apiKey: string;
@@ -38,6 +42,181 @@ export class PostProxyClient {
     }
     // Return empty array if response is not in expected format
     return [];
+  }
+
+  /**
+   * Expand ~ to home directory in file paths
+   */
+  private expandPath(filePath: string): string {
+    if (filePath.startsWith("~/")) {
+      return filePath.replace("~", homedir());
+    }
+    return filePath;
+  }
+
+  /**
+   * Get MIME type based on file extension
+   */
+  private getMimeType(filePath: string): string {
+    const ext = filePath.toLowerCase().split(".").pop();
+    const mimeTypes: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+      mp4: "video/mp4",
+      mov: "video/quicktime",
+      avi: "video/x-msvideo",
+      webm: "video/webm",
+    };
+    return mimeTypes[ext || ""] || "application/octet-stream";
+  }
+
+  /**
+   * Check if any media items are file paths (vs URLs)
+   */
+  private hasFilePaths(media: string[]): boolean {
+    return media.some((item) => isFilePath(item));
+  }
+
+  /**
+   * Create post using multipart/form-data (for file uploads)
+   * Uses form field names with brackets: post[body], profiles[], media[]
+   */
+  private async createPostWithFiles(
+    params: CreatePostParams,
+    extraHeaders: Record<string, string>
+  ): Promise<CreatePostResponse> {
+    const url = `${this.baseUrl}/posts`;
+    const formData = new FormData();
+
+    // Add post body
+    formData.append("post[body]", params.content);
+
+    // Add scheduled_at if provided
+    if (params.schedule) {
+      formData.append("post[scheduled_at]", params.schedule);
+    }
+
+    // Add draft if provided
+    if (params.draft !== undefined) {
+      formData.append("post[draft]", String(params.draft));
+    }
+
+    // Add profiles (platform names)
+    for (const profile of params.profiles) {
+      formData.append("profiles[]", profile);
+    }
+
+    // Add media files and URLs
+    if (params.media && params.media.length > 0) {
+      for (const mediaItem of params.media) {
+        if (isFilePath(mediaItem)) {
+          // It's a file path - read and upload the file
+          const expandedPath = this.expandPath(mediaItem);
+          try {
+            const fileContent = readFileSync(expandedPath);
+            const fileName = basename(expandedPath);
+            const mimeType = this.getMimeType(expandedPath);
+            const blob = new Blob([fileContent], { type: mimeType });
+            formData.append("media[]", blob, fileName);
+            if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+              log(`Adding file to upload: ${fileName} (${mimeType}, ${fileContent.length} bytes)`);
+            }
+          } catch (error) {
+            throw createError(
+              ErrorCodes.VALIDATION_ERROR,
+              `Failed to read file: ${mediaItem} - ${(error as Error).message}`
+            );
+          }
+        } else {
+          // It's a URL - pass it as-is
+          formData.append("media[]", mediaItem);
+        }
+      }
+    }
+
+    // Add platform-specific parameters as JSON
+    if (params.platforms && Object.keys(params.platforms).length > 0) {
+      formData.append("platforms", JSON.stringify(params.platforms));
+    }
+
+    // Build headers (no Content-Type - fetch will set it with boundary for multipart)
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.apiKey}`,
+      ...extraHeaders,
+    };
+
+    if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+      log(`Creating post with file upload (multipart/form-data)`);
+      log(`Profiles: ${params.profiles.join(", ")}`);
+      log(`Media count: ${params.media?.length || 0}`);
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: formData,
+        signal: AbortSignal.timeout(60000), // 60 second timeout for file uploads
+      });
+
+      const requestId = response.headers.get("x-request-id");
+
+      if (!response.ok) {
+        let errorMessage = `API request failed with status ${response.status}`;
+        let errorDetails: any = { status: response.status, requestId };
+
+        try {
+          const errorBody = await response.json();
+          if (Array.isArray(errorBody.errors)) {
+            errorMessage = errorBody.errors.join("; ");
+            errorDetails = { ...errorDetails, errors: errorBody.errors };
+          } else if (errorBody.message) {
+            errorMessage = errorBody.message;
+            errorDetails = { ...errorDetails, ...errorBody };
+          } else if (errorBody.error) {
+            errorMessage = typeof errorBody.error === "string"
+              ? errorBody.error
+              : errorBody.message || errorMessage;
+            errorDetails = { ...errorDetails, ...errorBody };
+          }
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+
+        let errorCode: ErrorCode = ErrorCodes.API_ERROR;
+        if (response.status === 401) {
+          errorCode = ErrorCodes.AUTH_INVALID;
+        } else if (response.status === 404) {
+          errorCode = ErrorCodes.TARGET_NOT_FOUND;
+        } else if (response.status >= 400 && response.status < 500) {
+          errorCode = ErrorCodes.VALIDATION_ERROR;
+        }
+
+        logError(createError(errorCode, errorMessage, errorDetails), `API POST /posts (multipart)`);
+        throw createError(errorCode, errorMessage, errorDetails);
+      }
+
+      const jsonResponse = await response.json();
+      if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+        log(`Response POST /posts (multipart)`, JSON.stringify(jsonResponse, null, 2));
+      }
+      return jsonResponse as CreatePostResponse;
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw createError(
+          ErrorCodes.API_ERROR,
+          "Request timeout - API did not respond within 60 seconds"
+        );
+      }
+      if (error instanceof Error && "code" in error) {
+        throw error;
+      }
+      logError(error as Error, `API POST /posts (multipart)`);
+      throw formatError(error as Error, ErrorCodes.API_ERROR, { method: "POST", path: "/posts" });
+    }
   }
 
   /**
@@ -176,9 +355,19 @@ export class PostProxyClient {
    * Create a new post
    * API expects: { post: { body, scheduled_at, draft }, profiles: [...], media: [...], platforms: {...} }
    * Note: draft parameter must be inside the post object, not at the top level
+   * If media contains file paths, uses multipart/form-data for file upload
    */
   async createPost(params: CreatePostParams): Promise<CreatePostResponse> {
-    // Transform to API format
+    // Check if we need to use multipart/form-data for file uploads
+    if (params.media && params.media.length > 0 && this.hasFilePaths(params.media)) {
+      const extraHeaders: Record<string, string> = {};
+      if (params.idempotency_key) {
+        extraHeaders["Idempotency-Key"] = params.idempotency_key;
+      }
+      return this.createPostWithFiles(params, extraHeaders);
+    }
+
+    // Transform to API format (JSON request for URLs only)
     const apiPayload: any = {
       post: {
         body: params.content,
