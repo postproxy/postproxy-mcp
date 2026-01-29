@@ -29,6 +29,7 @@ export interface CreatePostParams {
   media?: string[];
   idempotency_key?: string;
   draft?: boolean; // If true, creates a draft post that won't publish automatically
+  platforms?: PlatformParams; // Platform-specific parameters
 }
 
 export interface CreatePostResponse {
@@ -79,4 +80,82 @@ export interface Post {
   created_at: string;
   updated_at?: string;
   platforms: PlatformOutcome[];
+}
+
+/**
+ * Platform-specific parameters for Instagram
+ */
+export interface InstagramParams {
+  format?: "post" | "reel" | "story";
+  collaborators?: string[]; // Array of usernames (up to 10 for posts, 3 for reels)
+  first_comment?: string;
+  cover_url?: string; // For reels
+  audio_name?: string; // For reels
+  trial_strategy?: "MANUAL" | "SS_PERFORMANCE"; // For reels
+  thumb_offset?: string; // Thumbnail offset in milliseconds for reels
+}
+
+/**
+ * Platform-specific parameters for YouTube
+ */
+export interface YouTubeParams {
+  title?: string; // Video title
+  privacy_status?: "public" | "unlisted" | "private"; // Video visibility
+  cover_url?: string; // Custom thumbnail URL
+}
+
+/**
+ * Platform-specific parameters for TikTok
+ */
+export interface TikTokParams {
+  privacy_status?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
+  photo_cover_index?: number; // Index (0-based) of photo to use as cover
+  auto_add_music?: boolean; // Enable automatic music
+  made_with_ai?: boolean; // Mark content as AI-generated
+  disable_comment?: boolean; // Disable comments on the post
+  disable_duet?: boolean; // Disable duets
+  disable_stitch?: boolean; // Disable stitches
+  brand_content_toggle?: boolean; // Mark video as paid partnership promoting a third-party business
+  brand_organic_toggle?: boolean; // Mark video as paid partnership promoting your own brand
+}
+
+/**
+ * Platform-specific parameters for Facebook
+ */
+export interface FacebookParams {
+  format?: "post" | "story";
+  first_comment?: string; // Comment to add after posting
+  page_id?: string; // Page ID when you have multiple pages
+}
+
+/**
+ * Platform-specific parameters for LinkedIn
+ */
+export interface LinkedInParams {
+  organization_id?: string; // Post on behalf of an organization/company page
+}
+
+/**
+ * Platform-specific parameters for Twitter/X
+ * Note: Twitter/X does not have platform-specific parameters
+ */
+export type TwitterParams = Record<string, never>;
+
+/**
+ * Platform-specific parameters for Threads
+ * Note: Threads does not have platform-specific parameters
+ */
+export type ThreadsParams = Record<string, never>;
+
+/**
+ * Union type for all platform-specific parameters
+ */
+export interface PlatformParams {
+  instagram?: InstagramParams;
+  youtube?: YouTubeParams;
+  tiktok?: TikTokParams;
+  facebook?: FacebookParams;
+  linkedin?: LinkedInParams;
+  twitter?: TwitterParams;
+  threads?: ThreadsParams;
 }

@@ -174,7 +174,7 @@ export class PostProxyClient {
 
   /**
    * Create a new post
-   * API expects: { post: { body, scheduled_at, draft }, profiles: [...], media: [...] }
+   * API expects: { post: { body, scheduled_at, draft }, profiles: [...], media: [...], platforms: {...} }
    * Note: draft parameter must be inside the post object, not at the top level
    */
   async createPost(params: CreatePostParams): Promise<CreatePostResponse> {
@@ -196,12 +196,51 @@ export class PostProxyClient {
       apiPayload.post.draft = params.draft;
     }
 
+    // Platform-specific parameters
+    // Only include platforms if it's a non-empty object with at least one platform
+    // Supports all platform parameter types: strings, numbers, booleans, arrays (e.g., collaborators)
+    // Empty platform objects (e.g., {"linkedin": {}}) are also supported
+    if (
+      params.platforms &&
+      typeof params.platforms === "object" &&
+      !Array.isArray(params.platforms) &&
+      Object.keys(params.platforms).length > 0
+    ) {
+      // Validate structure: each key should be a platform name (string), value should be an object
+      // Note: We only validate the top-level structure. Detailed validation happens in validation.ts
+      // Platform parameter objects can contain: strings, numbers, booleans, arrays (e.g., collaborators), or be empty {}
+      const isValidPlatforms = Object.entries(params.platforms).every(
+        ([key, value]) =>
+          typeof key === "string" &&
+          typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value)
+      );
+
+      if (isValidPlatforms) {
+        apiPayload.platforms = params.platforms;
+      } else {
+        log("WARNING: Invalid platforms structure, skipping platform parameters");
+      }
+    }
+
     // Log payload in debug mode to troubleshoot draft issues
     if (process.env.POSTPROXY_MCP_DEBUG === "1") {
       log("Creating post with payload:", JSON.stringify(apiPayload, null, 2));
       log(`Draft parameter: requested=${params.draft}, sending=${apiPayload.draft}`);
       if (params.media && params.media.length > 0) {
         log(`Post includes ${params.media.length} media file(s)`);
+      }
+      if (params.platforms) {
+        log(`Platform parameters received: ${JSON.stringify(params.platforms, null, 2)}`);
+        log(`Platform parameter keys: ${Object.keys(params.platforms).join(", ")}`);
+        if (apiPayload.platforms) {
+          log(`Platform parameters sent to API: ${JSON.stringify(apiPayload.platforms, null, 2)}`);
+        } else {
+          log("WARNING: Platform parameters were provided but not included in API payload (invalid structure or empty)");
+        }
+      } else {
+        log("No platform parameters provided");
       }
     }
 

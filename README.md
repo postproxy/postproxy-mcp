@@ -108,6 +108,26 @@ Publish a post to specified targets.
 - `idempotency_key` (string, optional): Idempotency key for deduplication
 - `require_confirmation` (boolean, optional): If true, return summary without publishing
 - `draft` (boolean, optional): If true, creates a draft post that won't publish automatically
+- `platforms` (object, optional): Platform-specific parameters. Key is platform name (e.g., "instagram", "youtube", "tiktok"), value is object with platform-specific options. See [Platform Parameters Reference](https://postproxy.dev/reference/platform-parameters/) for full documentation.
+
+  Example:
+  ```json
+  {
+    "instagram": {
+      "format": "reel",
+      "collaborators": ["username1", "username2"],
+      "first_comment": "Link in bio!"
+    },
+    "youtube": {
+      "title": "My Video Title",
+      "privacy_status": "public"
+    },
+    "tiktok": {
+      "privacy_status": "PUBLIC_TO_EVERYONE",
+      "auto_add_music": true
+    }
+  }
+  ```
 
 **Returns**:
 ```json
@@ -233,6 +253,282 @@ Show me all my available social media profiles
 ```
 Publish this post: "Check out our new product!" to accounts ["profile-123"]
 ```
+
+### Publish with Platform Parameters
+
+You can use platform-specific parameters to customize posts for each platform. The `platforms` parameter accepts an object where keys are platform names and values contain platform-specific options.
+
+#### Instagram Examples
+
+**Regular Post with Collaborators:**
+```
+Publish to Instagram: "Amazing content!" to my Instagram account with collaborators username1 and username2
+```
+
+Or with explicit parameters:
+```json
+{
+  "content": "Amazing content!",
+  "targets": ["instagram-profile-123"],
+  "media": ["https://example.com/image.jpg"],
+  "platforms": {
+    "instagram": {
+      "format": "post",
+      "collaborators": ["username1", "username2"],
+      "first_comment": "What do you think? 🔥"
+    }
+  }
+}
+```
+
+**Instagram Reel:**
+```json
+{
+  "content": "Check out this reel! #viral",
+  "targets": ["instagram-profile-123"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "instagram": {
+      "format": "reel",
+      "collaborators": ["collaborator_username"],
+      "cover_url": "https://example.com/thumbnail.jpg",
+      "audio_name": "Trending Audio",
+      "first_comment": "Link in bio!"
+    }
+  }
+}
+```
+
+**Instagram Story:**
+```json
+{
+  "targets": ["instagram-profile-123"],
+  "media": ["https://example.com/story-image.jpg"],
+  "platforms": {
+    "instagram": {
+      "format": "story"
+    }
+  }
+}
+```
+
+#### YouTube Examples
+
+**YouTube Video with Title and Privacy:**
+```
+Upload this video to YouTube with title "My Tutorial" and make it public
+```
+
+Or with explicit parameters:
+```json
+{
+  "content": "This is the video description with links and details",
+  "targets": ["youtube-profile-123"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "youtube": {
+      "title": "My Tutorial: How to Build an API",
+      "privacy_status": "public",
+      "cover_url": "https://example.com/custom-thumbnail.jpg"
+    }
+  }
+}
+```
+
+**Unlisted YouTube Video:**
+```json
+{
+  "content": "Video description",
+  "targets": ["youtube-profile-123"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "youtube": {
+      "title": "Private Tutorial",
+      "privacy_status": "unlisted"
+    }
+  }
+}
+```
+
+#### TikTok Examples
+
+**Public TikTok with Auto Music:**
+```json
+{
+  "content": "Check this out! #fyp",
+  "targets": ["tiktok-profile-123"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "tiktok": {
+      "privacy_status": "PUBLIC_TO_EVERYONE",
+      "auto_add_music": true,
+      "disable_comment": false,
+      "disable_duet": false,
+      "disable_stitch": false
+    }
+  }
+}
+```
+
+**TikTok for Followers Only with AI Label:**
+```json
+{
+  "content": "Special content for followers",
+  "targets": ["tiktok-profile-123"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "tiktok": {
+      "privacy_status": "FOLLOWER_OF_CREATOR",
+      "made_with_ai": true,
+      "brand_content_toggle": false
+    }
+  }
+}
+```
+
+#### Facebook Examples
+
+**Facebook Post with First Comment:**
+```json
+{
+  "content": "Check out our new product!",
+  "targets": ["facebook-profile-123"],
+  "media": ["https://example.com/product.jpg"],
+  "platforms": {
+    "facebook": {
+      "format": "post",
+      "first_comment": "Link to purchase: https://example.com/shop"
+    }
+  }
+}
+```
+
+**Facebook Story:**
+```json
+{
+  "targets": ["facebook-profile-123"],
+  "media": ["https://example.com/story-video.mp4"],
+  "platforms": {
+    "facebook": {
+      "format": "story"
+    }
+  }
+}
+```
+
+**Facebook Page Post:**
+```json
+{
+  "content": "Company announcement",
+  "targets": ["facebook-profile-123"],
+  "platforms": {
+    "facebook": {
+      "page_id": "123456789",
+      "first_comment": "Visit our website for more details"
+    }
+  }
+}
+```
+
+#### LinkedIn Examples
+
+**Personal LinkedIn Post:**
+```json
+{
+  "content": "Excited to share my latest article on AI",
+  "targets": ["linkedin-profile-123"],
+  "media": ["https://example.com/article-cover.jpg"]
+}
+```
+
+**Company LinkedIn Post:**
+```json
+{
+  "content": "We're hiring! Join our team",
+  "targets": ["linkedin-profile-123"],
+  "media": ["https://example.com/careers.jpg"],
+  "platforms": {
+    "linkedin": {
+      "organization_id": "company-id-12345"
+    }
+  }
+}
+```
+
+#### Cross-Platform Examples
+
+**Same Content, Different Platforms:**
+```json
+{
+  "content": "New product launch! 🚀",
+  "targets": ["instagram-profile", "twitter-profile", "linkedin-profile"],
+  "media": ["https://example.com/product.jpg"]
+}
+```
+
+**Video Across Platforms with Specific Parameters:**
+```json
+{
+  "content": "Product launch video",
+  "targets": ["instagram-profile", "youtube-profile", "tiktok-profile"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "instagram": {
+      "format": "reel",
+      "first_comment": "Link in bio!"
+    },
+    "youtube": {
+      "title": "Product Launch 2024",
+      "privacy_status": "public",
+      "cover_url": "https://example.com/yt-thumbnail.jpg"
+    },
+    "tiktok": {
+      "privacy_status": "PUBLIC_TO_EVERYONE",
+      "auto_add_music": true
+    }
+  }
+}
+```
+
+#### Platform Parameters Reference
+
+**Instagram:**
+- `format`: "post" | "reel" | "story"
+- `collaborators`: Array of usernames (max 10 for posts, 3 for reels)
+- `first_comment`: String - comment to add after posting
+- `cover_url`: String - thumbnail URL for reels
+- `audio_name`: String - audio track name for reels
+- `trial_strategy`: "MANUAL" | "SS_PERFORMANCE" - trial strategy for reels
+- `thumb_offset`: String - thumbnail offset in milliseconds for reels
+
+**YouTube:**
+- `title`: String - video title
+- `privacy_status`: "public" | "unlisted" | "private"
+- `cover_url`: String - custom thumbnail URL
+
+**TikTok:**
+- `privacy_status`: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY"
+- `photo_cover_index`: Integer - index of photo to use as cover (0-based)
+- `auto_add_music`: Boolean - enable automatic music
+- `made_with_ai`: Boolean - mark content as AI-generated
+- `disable_comment`: Boolean - disable comments
+- `disable_duet`: Boolean - disable duets
+- `disable_stitch`: Boolean - disable stitches
+- `brand_content_toggle`: Boolean - mark as paid partnership (third-party)
+- `brand_organic_toggle`: Boolean - mark as paid partnership (own brand)
+
+**Facebook:**
+- `format`: "post" | "story"
+- `first_comment`: String - comment to add after posting
+- `page_id`: String - page ID for posting to company pages
+
+**LinkedIn:**
+- `organization_id`: String - organization ID for company page posts
+
+**Twitter/X & Threads:**
+- No platform-specific parameters available
+
+For complete documentation, see the [Platform Parameters Reference](https://postproxy.dev/reference/platform-parameters/).
 
 ### Create a Draft Post
 

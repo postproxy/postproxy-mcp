@@ -52,39 +52,81 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
         },
         {
           name: "post.publish",
-          description: "Publish a post to specified targets",
+          description: "Publish a post to specified social media targets. Supports text content, media attachments, scheduling, drafts, and platform-specific customization via the 'platforms' parameter.",
           inputSchema: {
             type: "object",
             properties: {
               content: {
                 type: "string",
-                description: "Post content text",
+                description: "Post content text (caption/description)",
               },
               targets: {
                 type: "array",
                 items: { type: "string" },
-                description: "Array of target profile IDs",
+                description: "Array of target profile IDs to publish to",
               },
               schedule: {
                 type: "string",
-                description: "Optional ISO 8601 scheduled time",
+                description: "Optional ISO 8601 scheduled time (e.g., '2024-12-31T23:59:59Z')",
               },
               media: {
                 type: "array",
                 items: { type: "string" },
-                description: "Optional array of media URLs",
+                description: "Optional array of media URLs (images or videos)",
               },
               idempotency_key: {
                 type: "string",
-                description: "Optional idempotency key for deduplication",
+                description: "Optional idempotency key for request deduplication",
               },
               require_confirmation: {
                 type: "boolean",
-                description: "If true, return summary without publishing",
+                description: "If true, return summary without publishing (dry run)",
               },
               draft: {
                 type: "boolean",
                 description: "If true, creates a draft post that won't publish automatically",
+              },
+              platforms: {
+                type: "object",
+                description: "Platform-specific parameters. Keys are platform names, values are parameter objects. Use this to add collaborators, set video titles, privacy settings, etc.",
+                properties: {
+                  instagram: {
+                    type: "object",
+                    description: "Instagram: format (post|reel|story), collaborators (array of usernames), first_comment (string), cover_url (string), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms)",
+                    additionalProperties: true,
+                  },
+                  youtube: {
+                    type: "object",
+                    description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL)",
+                    additionalProperties: true,
+                  },
+                  tiktok: {
+                    type: "object",
+                    description: "TikTok: privacy_status (PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY), photo_cover_index (integer), auto_add_music (bool), made_with_ai (bool), disable_comment (bool), disable_duet (bool), disable_stitch (bool), brand_content_toggle (bool), brand_organic_toggle (bool)",
+                    additionalProperties: true,
+                  },
+                  facebook: {
+                    type: "object",
+                    description: "Facebook: format (post|story), first_comment (string), page_id (string)",
+                    additionalProperties: true,
+                  },
+                  linkedin: {
+                    type: "object",
+                    description: "LinkedIn: organization_id (string for company pages)",
+                    additionalProperties: true,
+                  },
+                  twitter: {
+                    type: "object",
+                    description: "Twitter/X: No platform-specific parameters available",
+                    additionalProperties: true,
+                  },
+                  threads: {
+                    type: "object",
+                    description: "Threads: No platform-specific parameters available",
+                    additionalProperties: true,
+                  },
+                },
+                additionalProperties: true,
               },
             },
             required: ["content", "targets"],

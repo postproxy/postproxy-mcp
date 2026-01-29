@@ -19,6 +19,7 @@ export async function handlePostPublish(
     idempotency_key?: string;
     require_confirmation?: boolean;
     draft?: boolean;
+    platforms?: Record<string, Record<string, any>>;
   }
 ) {
   // Validate input
@@ -42,6 +43,7 @@ export async function handlePostPublish(
                 media_count: args.media?.length || 0,
                 schedule_time: args.schedule,
                 draft: args.draft || false,
+                platforms: args.platforms || {},
               },
             },
             null,
@@ -70,6 +72,20 @@ export async function handlePostPublish(
     platformNames.push(target.platform); // platform name (e.g., "twitter")
   }
 
+  // Validate that platforms keys match platform names if platforms are provided
+  if (args.platforms) {
+    const platformKeys = Object.keys(args.platforms);
+    const invalidPlatforms = platformKeys.filter(
+      (key) => !platformNames.includes(key)
+    );
+    if (invalidPlatforms.length > 0) {
+      throw createError(
+        ErrorCodes.VALIDATION_ERROR,
+        `Platform parameters specified for platforms not in targets: ${invalidPlatforms.join(", ")}. Available platforms: ${platformNames.join(", ")}`
+      );
+    }
+  }
+
   // Generate idempotency key if not provided
   const idempotencyKey = args.idempotency_key || generateIdempotencyKey(
     args.content,
@@ -90,6 +106,7 @@ export async function handlePostPublish(
       media: args.media,
       idempotency_key: idempotencyKey,
       draft: draftValue, // Explicitly pass draft value (true, false, or undefined)
+      platforms: args.platforms, // Platform-specific parameters
     });
 
     // Check if draft was requested but API ignored it
