@@ -856,14 +856,28 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
+   * CORS headers for all responses
+   */
+  private corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-PostProxy-API-Key",
+  };
+
+  /**
    * Handle incoming requests
    */
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // Handle CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: this.corsHeaders });
+    }
+
     // Only handle /mcp path
     if (url.pathname !== "/mcp") {
-      return new Response("Not Found", { status: 404 });
+      return new Response("Not Found", { status: 404, headers: this.corsHeaders });
     }
 
     // Extract API key from header or query parameter
@@ -877,16 +891,16 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
         // Notifications don't get a response
         if (result === null) {
-          return new Response(null, { status: 204 });
+          return new Response(null, { status: 204, headers: this.corsHeaders });
         }
 
-        return Response.json(result);
+        return Response.json(result, { headers: this.corsHeaders });
       } catch (e: any) {
         return Response.json({
           jsonrpc: "2.0",
           error: { code: -32700, message: "Parse error" },
           id: null,
-        }, { status: 400 });
+        }, { status: 400, headers: this.corsHeaders });
       }
     }
 
@@ -896,6 +910,6 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       version: "0.1.0",
       description: "MCP server for PostProxy API",
       tools: this.getTools().map(t => t.name),
-    });
+    }, { headers: this.corsHeaders });
   }
 }
