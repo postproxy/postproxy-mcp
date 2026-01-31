@@ -1,6 +1,6 @@
 # PostProxy MCP Server
 
-MCP (Model Context Protocol) server for integrating PostProxy API with Claude Code. This server provides tools for publishing posts, checking statuses, and managing social media profiles through Claude Code.
+MCP (Model Context Protocol) server for integrating [PostProxy](https://postproxy.dev/) API with Claude Code. This server provides tools for publishing posts, checking statuses, and managing social media profiles through Claude Code.
 
 ## Installation
 
