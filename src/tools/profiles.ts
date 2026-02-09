@@ -21,7 +21,7 @@ export async function handleProfilesList(client: PostProxyClient) {
     const profileGroups = await client.getProfileGroups();
 
     // Get profiles for each group
-    const allTargets: Array<{
+    const allProfiles: Array<{
       id: string;
       name: string;
       platform: string;
@@ -32,7 +32,7 @@ export async function handleProfilesList(client: PostProxyClient) {
       try {
         const profiles = await client.getProfiles(group.id);
         for (const profile of profiles) {
-          allTargets.push({
+          allProfiles.push({
             id: profile.id, // Already a string
             name: profile.name,
             platform: profile.platform,
@@ -51,7 +51,7 @@ export async function handleProfilesList(client: PostProxyClient) {
           type: "text",
           text: JSON.stringify(
             {
-              targets: allTargets,
+              profiles: allProfiles,
             },
             null,
             2

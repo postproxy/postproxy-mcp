@@ -32,7 +32,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "profiles.list",
-    description: "List all available social media profiles (targets) for posting",
+    description: "List all available social media profiles for posting",
     inputSchema: {
       type: "object",
       properties: {},
@@ -40,7 +40,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "post.publish",
-    description: "Publish a post to specified social media targets. Supports text content, media attachments, scheduling, drafts, and platform-specific customization via the 'platforms' parameter.",
+    description: "Publish a post to specified social media profiles. Supports text content, media attachments, scheduling, drafts, and platform-specific customization via the 'platforms' parameter.",
     inputSchema: {
       type: "object",
       properties: {
@@ -48,10 +48,10 @@ export const TOOL_DEFINITIONS = [
           type: "string",
           description: "Post content text (caption/description)",
         },
-        targets: {
+        profiles: {
           type: "array",
           items: { type: "string" },
-          description: "Array of target profile IDs to publish to",
+          description: "Array of profile IDs (hashids) or platform names (e.g., 'linkedin', 'instagram', 'twitter'). When using platform names, posts to the first connected profile for that platform.",
         },
         schedule: {
           type: "string",
@@ -117,7 +117,7 @@ export const TOOL_DEFINITIONS = [
           additionalProperties: true,
         },
       },
-      required: ["content", "targets"],
+      required: ["content", "profiles"],
     },
   },
   {

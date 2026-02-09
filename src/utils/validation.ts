@@ -147,7 +147,7 @@ export const PlatformParamsSchema = z.object({
  */
 export const PostPublishSchema = z.object({
   content: z.string().min(1, "Content cannot be empty"),
-  targets: z.array(z.string()).min(1, "At least one target is required"),
+  profiles: z.array(z.string()).min(1, "At least one profile is required"),
   schedule: ISO8601DateSchema.optional(),
   media: z.array(MediaItemSchema).optional(),
   idempotency_key: z.string().optional(),

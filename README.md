@@ -76,19 +76,19 @@ Check authentication status, API configuration, and workspace information.
 
 #### `profiles.list`
 
-List all available social media profiles (targets) for posting.
+List all available social media profiles for posting.
 
 **Parameters**: None
 
 **Returns**:
 ```json
 {
-  "targets": [
+  "profiles": [
     {
       "id": "profile-123",
       "name": "My Twitter Account",
       "platform": "twitter",
-      "profile_group_id": 1
+      "profile_group_id": "group-abc"
     }
   ]
 }
@@ -98,13 +98,13 @@ List all available social media profiles (targets) for posting.
 
 #### `post.publish`
 
-Publish a post to specified targets.
+Publish a post to specified social media profiles.
 
 **Parameters**:
 - `content` (string, required): Post content text
-- `targets` (string[], required): Array of target profile IDs (must belong to same profile group)
+- `profiles` (string[], required): Array of profile IDs (hashids) or platform names (e.g., `"linkedin"`, `"instagram"`, `"twitter"`). When using platform names, posts to the first connected profile for that platform.
 - `schedule` (string, optional): ISO 8601 scheduled time
-- `media` (string[], optional): Array of media URLs
+- `media` (string[], optional): Array of media URLs or local file paths
 - `idempotency_key` (string, optional): Idempotency key for deduplication
 - `require_confirmation` (boolean, optional): If true, return summary without publishing
 - `draft` (boolean, optional): If true, creates a draft post that won't publish automatically
@@ -250,8 +250,14 @@ Show me all my available social media profiles
 
 ### Publish a Post
 
+Using profile IDs:
 ```
-Publish this post: "Check out our new product!" to accounts ["profile-123"]
+Publish this post: "Check out our new product!" to profiles ["profile-123"]
+```
+
+Using platform names:
+```
+Publish "Exciting news!" to linkedin and twitter
 ```
 
 ### Publish with Platform Parameters
@@ -269,7 +275,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Amazing content!",
-  "targets": ["instagram-profile-123"],
+  "profiles": ["instagram"],
   "media": ["https://example.com/image.jpg"],
   "platforms": {
     "instagram": {
@@ -285,7 +291,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Check out this reel! #viral",
-  "targets": ["instagram-profile-123"],
+  "profiles": ["instagram"],
   "media": ["https://example.com/video.mp4"],
   "platforms": {
     "instagram": {
@@ -302,7 +308,7 @@ Or with explicit parameters:
 **Instagram Story:**
 ```json
 {
-  "targets": ["instagram-profile-123"],
+  "profiles": ["instagram"],
   "media": ["https://example.com/story-image.jpg"],
   "platforms": {
     "instagram": {
@@ -323,7 +329,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "This is the video description with links and details",
-  "targets": ["youtube-profile-123"],
+  "profiles": ["youtube"],
   "media": ["https://example.com/video.mp4"],
   "platforms": {
     "youtube": {
@@ -339,7 +345,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Video description",
-  "targets": ["youtube-profile-123"],
+  "profiles": ["youtube"],
   "media": ["https://example.com/video.mp4"],
   "platforms": {
     "youtube": {
@@ -356,7 +362,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Check this out! #fyp",
-  "targets": ["tiktok-profile-123"],
+  "profiles": ["tiktok"],
   "media": ["https://example.com/video.mp4"],
   "platforms": {
     "tiktok": {
@@ -374,7 +380,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Special content for followers",
-  "targets": ["tiktok-profile-123"],
+  "profiles": ["tiktok"],
   "media": ["https://example.com/video.mp4"],
   "platforms": {
     "tiktok": {
@@ -392,7 +398,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Check out our new product!",
-  "targets": ["facebook-profile-123"],
+  "profiles": ["facebook"],
   "media": ["https://example.com/product.jpg"],
   "platforms": {
     "facebook": {
@@ -406,7 +412,7 @@ Or with explicit parameters:
 **Facebook Story:**
 ```json
 {
-  "targets": ["facebook-profile-123"],
+  "profiles": ["facebook"],
   "media": ["https://example.com/story-video.mp4"],
   "platforms": {
     "facebook": {
@@ -420,7 +426,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Company announcement",
-  "targets": ["facebook-profile-123"],
+  "profiles": ["facebook"],
   "platforms": {
     "facebook": {
       "page_id": "123456789",
@@ -436,7 +442,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Excited to share my latest article on AI",
-  "targets": ["linkedin-profile-123"],
+  "profiles": ["linkedin"],
   "media": ["https://example.com/article-cover.jpg"]
 }
 ```
@@ -445,7 +451,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "We're hiring! Join our team",
-  "targets": ["linkedin-profile-123"],
+  "profiles": ["linkedin"],
   "media": ["https://example.com/careers.jpg"],
   "platforms": {
     "linkedin": {
@@ -461,7 +467,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "New product launch! 🚀",
-  "targets": ["instagram-profile", "twitter-profile", "linkedin-profile"],
+  "profiles": ["instagram", "twitter", "linkedin"],
   "media": ["https://example.com/product.jpg"]
 }
 ```
@@ -470,7 +476,7 @@ Or with explicit parameters:
 ```json
 {
   "content": "Product launch video",
-  "targets": ["instagram-profile", "youtube-profile", "tiktok-profile"],
+  "profiles": ["instagram", "youtube", "tiktok"],
   "media": ["https://example.com/video.mp4"],
   "platforms": {
     "instagram": {
@@ -533,7 +539,7 @@ For complete documentation, see the [Platform Parameters Reference](https://post
 ### Create a Draft Post
 
 ```
-Create a draft post: "Review this before publishing" to accounts ["profile-123"]
+Create a draft post: "Review this before publishing" to linkedin
 ```
 
 ### Publish a Draft Post
@@ -577,7 +583,7 @@ Show me the last 5 posts I published
 
 ### Validation Errors
 
-- **TARGET_NOT_FOUND**: One or more target profile IDs don't exist. Use `profiles.list` to see available targets.
+- **TARGET_NOT_FOUND**: One or more profile IDs don't exist. Use `profiles.list` to see available profiles.
 - **VALIDATION_ERROR**: Post content or parameters are invalid. The API now returns detailed error messages:
   - **400 errors**: `{"status":400,"error":"Bad Request","message":"..."}`
   - **422 errors**: `{"errors": ["Error 1", "Error 2"]}` - Array of validation error messages

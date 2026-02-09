@@ -7,13 +7,12 @@ import { PostPublishSchema } from "../utils/validation.js";
 import { generateIdempotencyKey } from "../utils/idempotency.js";
 import { createError, ErrorCodes } from "../utils/errors.js";
 import { logError } from "../utils/logger.js";
-import { handleProfilesList } from "./profiles.js";
 
 export async function handlePostPublish(
   client: PostProxyClient,
   args: {
     content: string;
-    targets: string[];
+    profiles: string[];
     schedule?: string;
     media?: string[];
     idempotency_key?: string;
@@ -38,7 +37,7 @@ export async function handlePostPublish(
           text: JSON.stringify(
             {
               summary: {
-                targets: args.targets,
+                profiles: args.profiles,
                 content_preview: args.content.substring(0, 100) + (args.content.length > 100 ? "..." : ""),
                 media_count: args.media?.length || 0,
                 schedule_time: args.schedule,
@@ -54,42 +53,14 @@ export async function handlePostPublish(
     };
   }
 
-  // Get profiles to convert target IDs to platform names
-  const profilesResult = await handleProfilesList(client);
-  const profilesData = JSON.parse(profilesResult.content[0]?.text || "{}");
-  const targetsMap = new Map<string, any>();
-  for (const target of profilesData.targets || []) {
-    targetsMap.set(target.id, target);
-  }
-
-  // Convert target IDs to platform names (API expects platform names, not IDs)
-  const platformNames: string[] = [];
-  for (const targetId of args.targets) {
-    const target = targetsMap.get(targetId);
-    if (!target) {
-      throw createError(ErrorCodes.TARGET_NOT_FOUND, `Target ${targetId} not found`);
-    }
-    platformNames.push(target.platform); // platform name (e.g., "twitter")
-  }
-
-  // Validate that platforms keys match platform names if platforms are provided
-  if (args.platforms) {
-    const platformKeys = Object.keys(args.platforms);
-    const invalidPlatforms = platformKeys.filter(
-      (key) => !platformNames.includes(key)
-    );
-    if (invalidPlatforms.length > 0) {
-      throw createError(
-        ErrorCodes.VALIDATION_ERROR,
-        `Platform parameters specified for platforms not in targets: ${invalidPlatforms.join(", ")}. Available platforms: ${platformNames.join(", ")}`
-      );
-    }
-  }
+  // Note: The API accepts both profile IDs (hashids) and platform names (e.g., "linkedin", "twitter")
+  // We pass the profiles array directly without conversion
+  // Platform parameter validation is optional - if provided, it should match the platforms being posted to
 
   // Generate idempotency key if not provided
   const idempotencyKey = args.idempotency_key || generateIdempotencyKey(
     args.content,
-    args.targets,
+    args.profiles,
     args.schedule
   );
 
@@ -101,7 +72,7 @@ export async function handlePostPublish(
   try {
     const response = await client.createPost({
       content: args.content,
-      profiles: platformNames, // API expects platform names, not profile IDs
+      profiles: args.profiles, // API accepts both profile IDs (hashids) and platform names
       schedule: args.schedule,
       media: args.media,
       idempotency_key: idempotencyKey,
