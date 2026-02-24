@@ -307,3 +307,45 @@ export async function handlePostDelete(
     );
   }
 }
+
+export async function handlePostStats(
+  client: PostProxyClient,
+  args: {
+    post_ids: string[];
+    profiles?: string;
+    from?: string;
+    to?: string;
+  }
+) {
+  if (!args.post_ids || args.post_ids.length === 0) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "post_ids is required and must not be empty");
+  }
+
+  if (args.post_ids.length > 50) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "Maximum 50 post IDs allowed");
+  }
+
+  try {
+    const response = await client.getPostStats({
+      post_ids: args.post_ids,
+      profiles: args.profiles,
+      from: args.from,
+      to: args.to,
+    });
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "post.stats");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to retrieve post stats: ${(error as Error).message}`
+    );
+  }
+}

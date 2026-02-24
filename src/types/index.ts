@@ -159,3 +159,42 @@ export interface PlatformParams {
   twitter?: TwitterParams;
   threads?: ThreadsParams;
 }
+
+/**
+ * Placement for a profile (Facebook pages, LinkedIn organizations, Pinterest boards)
+ */
+export interface Placement {
+  id: string | null;
+  name: string;
+}
+
+/**
+ * Post stats snapshot record
+ */
+export interface StatsRecord {
+  stats: Record<string, number>;
+  recorded_at: string;
+}
+
+/**
+ * Platform stats for a post
+ */
+export interface PlatformStats {
+  profile_id: string;
+  platform: string;
+  records: StatsRecord[];
+}
+
+/**
+ * Stats response for a single post
+ */
+export interface PostStats {
+  platforms: PlatformStats[];
+}
+
+/**
+ * Full stats response keyed by post ID
+ */
+export interface StatsResponse {
+  data: Record<string, PostStats>;
+}

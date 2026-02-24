@@ -1,5 +1,5 @@
 /**
- * Profiles tools: profiles.list
+ * Profiles tools: profiles.list, profiles.placements
  */
 
 import type { PostProxyClient } from "../api/client.js";
@@ -64,6 +64,41 @@ export async function handleProfilesList(client: PostProxyClient) {
     throw createError(
       ErrorCodes.API_ERROR,
       `Failed to retrieve profiles: ${(error as Error).message}`
+    );
+  }
+}
+
+export async function handleProfilesPlacements(
+  client: PostProxyClient,
+  args: { profile_id: string }
+) {
+  logToolCall("profiles.placements", args);
+
+  if (!args.profile_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "profile_id is required");
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw createError(ErrorCodes.AUTH_MISSING, "API key is not configured");
+  }
+
+  try {
+    const placements = await client.getPlacements(args.profile_id);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ placements }, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "profiles.placements");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to retrieve placements: ${(error as Error).message}`
     );
   }
 }

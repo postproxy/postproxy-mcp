@@ -6,12 +6,13 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { PostProxyClient } from "./api/client.js";
 import { handleAuthStatus } from "./tools/auth.js";
-import { handleProfilesList } from "./tools/profiles.js";
+import { handleProfilesList, handleProfilesPlacements } from "./tools/profiles.js";
 import {
   handlePostPublish,
   handlePostStatus,
   handlePostDelete,
   handlePostPublishDraft,
+  handlePostStats,
 } from "./tools/post.js";
 import { handleHistoryList } from "./tools/history.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
@@ -175,6 +176,47 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    name: "post.stats",
+    description: "Get stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time. Supports filtering by profiles/networks and timespan.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of post hashids (max 50)",
+        },
+        profiles: {
+          type: "string",
+          description: "Optional comma-separated list of profile hashids or network names (e.g. 'instagram,twitter' or 'abc123,def456' or mixed)",
+        },
+        from: {
+          type: "string",
+          description: "Optional ISO 8601 timestamp — only include snapshots recorded at or after this time",
+        },
+        to: {
+          type: "string",
+          description: "Optional ISO 8601 timestamp — only include snapshots recorded at or before this time",
+        },
+      },
+      required: ["post_ids"],
+    },
+  },
+  {
+    name: "profiles.placements",
+    description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. Available for facebook, linkedin, and pinterest profiles.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid",
+        },
+      },
+      required: ["profile_id"],
+    },
+  },
 ] as const;
 
 export async function createMCPServer(client: PostProxyClient): Promise<Server> {
@@ -219,6 +261,10 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handlePostDelete(client, args as any);
         case "history.list":
           return await handleHistoryList(client, args as any);
+        case "post.stats":
+          return await handlePostStats(client, args as any);
+        case "profiles.placements":
+          return await handleProfilesPlacements(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
       }

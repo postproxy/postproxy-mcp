@@ -12,6 +12,8 @@ import type {
   CreatePostResponse,
   PostDetails,
   Post,
+  Placement,
+  StatsResponse,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
@@ -493,5 +495,36 @@ export class PostProxyClient {
    */
   async publishPost(postId: string): Promise<PostDetails> {
     return this.request<PostDetails>("POST", `/posts/${postId}/publish`);
+  }
+
+  /**
+   * Get placements for a profile (Facebook pages, LinkedIn orgs, Pinterest boards)
+   */
+  async getPlacements(profileId: string): Promise<Placement[]> {
+    const response = await this.request<any>("GET", `/profiles/${profileId}/placements`);
+    return this.extractArray<Placement>(response);
+  }
+
+  /**
+   * Get stats snapshots for one or more posts
+   */
+  async getPostStats(params: {
+    post_ids: string[];
+    profiles?: string;
+    from?: string;
+    to?: string;
+  }): Promise<StatsResponse> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("post_ids", params.post_ids.join(","));
+    if (params.profiles) {
+      queryParams.append("profiles", params.profiles);
+    }
+    if (params.from) {
+      queryParams.append("from", params.from);
+    }
+    if (params.to) {
+      queryParams.append("to", params.to);
+    }
+    return this.request<StatsResponse>("GET", `/posts/stats?${queryParams.toString()}`);
   }
 }
