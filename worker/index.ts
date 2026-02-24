@@ -677,6 +677,61 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
+   * Get stats snapshots for one or more posts
+   * @param post_ids {string} Comma-separated list of post hashids (max 50)
+   * @param profiles {string} Optional comma-separated list of profile hashids or network names
+   * @param from {string} Optional ISO 8601 timestamp — only include snapshots at or after this time
+   * @param to {string} Optional ISO 8601 timestamp — only include snapshots at or before this time
+   * @return {Promise<string>} Post stats as JSON
+   */
+  async postStats(
+    post_ids: string,
+    profiles?: string,
+    from?: string,
+    to?: string
+  ): Promise<string> {
+    if (!post_ids || post_ids.trim() === "") {
+      throw new Error("post_ids is required");
+    }
+
+    const ids = post_ids.split(",").map((id) => id.trim()).filter(Boolean);
+    if (ids.length > 50) {
+      throw new Error("Maximum 50 post IDs allowed");
+    }
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("post_ids", ids.join(","));
+    if (profiles) {
+      queryParams.append("profiles", profiles);
+    }
+    if (from) {
+      queryParams.append("from", from);
+    }
+    if (to) {
+      queryParams.append("to", to);
+    }
+
+    const response = await this.apiRequest<any>("GET", `/posts/stats?${queryParams.toString()}`);
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * List available placements for a profile (Facebook pages, LinkedIn orgs, Pinterest boards)
+   * @param profile_id {string} Profile hashid
+   * @return {Promise<string>} List of placements as JSON
+   */
+  async profilesPlacements(profile_id: string): Promise<string> {
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const response = await this.apiRequest<any>("GET", `/profiles/${profile_id}/placements`);
+    const placements = this.extractArray<{ id: string | null; name: string }>(response);
+
+    return JSON.stringify({ placements }, null, 2);
+  }
+
+  /**
    * MCP tool definitions
    */
   private getTools() {
@@ -754,6 +809,31 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           required: [],
         },
       },
+      {
+        name: "postStats",
+        description: "Get stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time. Supports filtering by profiles/networks and timespan.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_ids: { type: "string", description: "Comma-separated list of post hashids (max 50)" },
+            profiles: { type: "string", description: "Optional comma-separated list of profile hashids or network names (e.g. 'instagram,twitter')" },
+            from: { type: "string", description: "Optional ISO 8601 timestamp — only include snapshots at or after this time" },
+            to: { type: "string", description: "Optional ISO 8601 timestamp — only include snapshots at or before this time" },
+          },
+          required: ["post_ids"],
+        },
+      },
+      {
+        name: "profilesPlacements",
+        description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. Available for facebook, linkedin, and pinterest profiles.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            profile_id: { type: "string", description: "Profile hashid" },
+          },
+          required: ["profile_id"],
+        },
+      },
     ];
   }
 
@@ -824,6 +904,12 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
               break;
             case "historyList":
               result = await this.historyList(args?.limit);
+              break;
+            case "postStats":
+              result = await this.postStats(args.post_ids, args.profiles, args.from, args.to);
+              break;
+            case "profilesPlacements":
+              result = await this.profilesPlacements(args.profile_id);
               break;
             default:
               return {
