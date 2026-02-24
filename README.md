@@ -94,6 +94,35 @@ List all available social media profiles for posting.
 }
 ```
 
+#### `profiles.placements`
+
+List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. Available for `facebook`, `linkedin`, and `pinterest` profiles.
+
+**Parameters**:
+- `profile_id` (string, required): Profile hashid
+
+**Returns** (LinkedIn example):
+```json
+{
+  "placements": [
+    {
+      "id": null,
+      "name": "Personal Profile"
+    },
+    {
+      "id": "108520199",
+      "name": "Acme Marketing"
+    }
+  ]
+}
+```
+
+**Notes**:
+- If no placement is specified when creating a post:
+  - **LinkedIn**: defaults to the personal profile
+  - **Facebook**: defaults to a random connected page (if only one page is connected, no need to set a placement ID)
+  - **Pinterest**: it fails
+
 ### Post Management
 
 #### `post.publish`
@@ -206,6 +235,57 @@ Delete a post by job ID.
   "deleted": true
 }
 ```
+
+#### `post.stats`
+
+Get stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time. Supports filtering by profiles/networks and timespan.
+
+**Parameters**:
+- `post_ids` (string[], required): Array of post hashids (max 50)
+- `profiles` (string, optional): Comma-separated list of profile hashids or network names (e.g. `instagram,twitter` or `abc123,def456` or mixed)
+- `from` (string, optional): ISO 8601 timestamp — only include snapshots recorded at or after this time
+- `to` (string, optional): ISO 8601 timestamp — only include snapshots recorded at or before this time
+
+**Returns**:
+```json
+{
+  "data": {
+    "abc123": {
+      "platforms": [
+        {
+          "profile_id": "prof_abc",
+          "platform": "instagram",
+          "records": [
+            {
+              "stats": {
+                "impressions": 1200,
+                "likes": 85,
+                "comments": 12,
+                "saved": 8
+              },
+              "recorded_at": "2026-02-20T12:00:00Z"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+**Stats fields by platform**:
+| Platform | Fields |
+|----------|--------|
+| Instagram | `impressions`, `likes`, `comments`, `saved`, `profile_visits`, `follows` |
+| Facebook | `impressions`, `clicks`, `likes` |
+| Threads | `impressions`, `likes`, `replies`, `reposts`, `quotes`, `shares` |
+| Twitter | `impressions`, `likes`, `retweets`, `comments`, `quotes`, `saved` |
+| YouTube | `impressions`, `likes`, `comments`, `saved` |
+| LinkedIn | `impressions` |
+| TikTok | `impressions`, `likes`, `comments`, `shares` |
+| Pinterest | `impressions`, `likes`, `comments`, `saved`, `outbound_clicks` |
+
+**Notes**: Instagram stories do not return stats. TikTok stats require the post to have a public ID.
 
 ### History
 
@@ -559,6 +639,22 @@ This will show detailed status including draft status, platform-specific errors,
 
 ```
 Delete post job-123
+```
+
+### Get Post Stats
+
+```
+Show me the stats for post abc123
+```
+
+```
+Get stats for posts abc123 and def456 filtered to Instagram only, from February 1st to today
+```
+
+### List Placements
+
+```
+Show me the placements for my LinkedIn profile prof123
 ```
 
 ### View History
