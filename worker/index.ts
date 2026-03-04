@@ -36,15 +36,26 @@ interface PlatformOutcome {
   insights?: any;
 }
 
+interface MediaAttachment {
+  id: string;
+  status: "pending" | "processed" | "failed";
+  error_message: string | null;
+  content_type: string;
+  source_url: string | null;
+  url: string | null;
+}
+
 interface Post {
   id: string;
   body?: string;
   content?: string;
-  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled" | "media_processing_failed";
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;
+  media?: MediaAttachment[];
   platforms: PlatformOutcome[];
+  thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
 }
 
 export default class PostProxyMCP extends WorkerEntrypoint<Env> {
@@ -177,7 +188,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     schedule?: string,
     draft?: boolean,
     platformParams?: Record<string, Record<string, any>>,
-    idempotencyKey?: string
+    idempotencyKey?: string,
+    threadChildren?: Array<{ body: string; media?: string[] }>
   ): Promise<any> {
     const baseUrl = this.env.POSTPROXY_BASE_URL.replace(/\/$/, "");
     const url = `${baseUrl}/posts`;
@@ -222,6 +234,11 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     // Add platform-specific parameters as JSON
     if (platformParams && Object.keys(platformParams).length > 0) {
       formData.append("platforms", JSON.stringify(platformParams));
+    }
+
+    // Add thread children
+    if (threadChildren && threadChildren.length > 0) {
+      formData.append("thread", JSON.stringify(threadChildren));
     }
 
     // Build headers
@@ -290,7 +307,10 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
    */
   private determineOverallStatus(
     post: Post
-  ): "pending" | "processing" | "complete" | "failed" | "draft" {
+  ): "pending" | "processing" | "complete" | "failed" | "draft" | "media_processing_failed" {
+    if (post.status === "media_processing_failed") {
+      return "media_processing_failed";
+    }
     if (post.status === "draft" || post.draft === true) {
       return "draft";
     }
@@ -382,6 +402,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
    * @param draft {boolean} If true, creates a draft post that won't publish automatically
    * @param platforms {string} Optional JSON string of platform-specific parameters
    * @param media_files {string} Optional JSON array of file objects with {filename, data (base64), content_type?}
+   * @param thread {string} Optional JSON array of thread child posts [{body, media?}]. Supported on X and Threads only.
    * @return {Promise<string>} Post creation result as JSON
    */
   async postPublish(
@@ -393,7 +414,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     require_confirmation?: boolean,
     draft?: boolean,
     platforms?: string,
-    media_files?: string
+    media_files?: string,
+    thread?: string
   ): Promise<string> {
     this.getApiKey(); // Validate API key is present
 
@@ -432,6 +454,27 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       }
     }
 
+    // Parse thread JSON if provided
+    let threadChildren: Array<{ body: string; media?: string[] }> | undefined;
+    if (thread) {
+      try {
+        threadChildren = JSON.parse(thread);
+        if (!Array.isArray(threadChildren)) {
+          throw new Error("thread must be an array");
+        }
+        for (const child of threadChildren) {
+          if (!child.body) {
+            throw new Error("Each thread child must have a 'body' property");
+          }
+        }
+      } catch (e: any) {
+        if (e.message.includes("thread")) {
+          throw e;
+        }
+        throw new Error("Invalid thread parameter: must be valid JSON array");
+      }
+    }
+
     // Validate input
     if (!content || content.trim() === "") {
       throw new Error("Content cannot be empty");
@@ -452,6 +495,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
             schedule_time: schedule,
             draft: draft || false,
             platforms: platformParams || {},
+            thread: threadChildren || [],
           },
         },
         null,
@@ -503,7 +547,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         schedule,
         draft,
         platformParams,
-        finalIdempotencyKey
+        finalIdempotencyKey,
+        threadChildren
       );
     } else {
       // Create post with JSON (URLs only)
@@ -525,6 +570,10 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
       if (platformParams && Object.keys(platformParams).length > 0) {
         apiPayload.platforms = platformParams;
+      }
+
+      if (threadChildren && threadChildren.length > 0) {
+        apiPayload.thread = threadChildren;
       }
 
       const extraHeaders: Record<string, string> = {
@@ -579,17 +628,23 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
     const overallStatus = this.determineOverallStatus(postDetails);
 
-    return JSON.stringify(
-      {
-        job_id: job_id,
-        overall_status: overallStatus,
-        draft: postDetails.draft || false,
-        status: postDetails.status,
-        platforms,
-      },
-      null,
-      2
-    );
+    const result: any = {
+      job_id: job_id,
+      overall_status: overallStatus,
+      draft: postDetails.draft || false,
+      status: postDetails.status,
+      platforms,
+    };
+
+    if (postDetails.media && postDetails.media.length > 0) {
+      result.media = postDetails.media;
+    }
+
+    if (postDetails.thread && postDetails.thread.length > 0) {
+      result.thread = postDetails.thread;
+    }
+
+    return JSON.stringify(result, null, 2);
   }
 
   /**
@@ -748,7 +803,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       },
       {
         name: "postPublish",
-        description: "Publish a post to specified targets",
+        description: "Publish a post to specified targets. Supports threads (X and Threads only).",
         inputSchema: {
           type: "object",
           properties: {
@@ -759,8 +814,9 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
             idempotency_key: { type: "string", description: "Optional idempotency key for deduplication" },
             require_confirmation: { type: "boolean", description: "If true, return summary without publishing" },
             draft: { type: "boolean", description: "If true, creates a draft post" },
-            platforms: { type: "string", description: "Optional JSON string of platform-specific parameters" },
+            platforms: { type: "string", description: "Optional JSON string of platform-specific parameters. YouTube supports: title, privacy_status, cover_url, made_for_kids. TikTok supports: format (video|image), privacy_status, and more." },
             media_files: { type: "string", description: "Optional JSON array of file objects for direct upload. Each object must have 'filename' and 'data' (base64-encoded file content), optionally 'content_type'. Example: [{\"filename\":\"photo.jpg\",\"data\":\"base64...\"}]" },
+            thread: { type: "string", description: "Optional JSON array of thread child posts. Supported on X and Threads only. Each object must have 'body' (string), optionally 'media' (array of URLs). Example: [{\"body\":\"Reply 1\"},{\"body\":\"Reply 2\",\"media\":[\"https://...\"]}]" },
           },
           required: ["content", "targets"],
         },
@@ -890,7 +946,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
                 args.require_confirmation,
                 args.draft,
                 args.platforms,
-                args.media_files
+                args.media_files,
+                args.thread
               );
               break;
             case "postStatus":

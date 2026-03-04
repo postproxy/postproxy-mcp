@@ -1,6 +1,6 @@
 {
   "name": "postproxy-mcp",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "MCP server for Postproxy API integration with Claude Code",
   "type": "module",
   "main": "./dist/index.js",

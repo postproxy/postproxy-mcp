@@ -89,10 +89,14 @@ export const YouTubeParamsSchema = z.object({
     errorMap: () => ({ message: "YouTube privacy_status must be 'public', 'unlisted', or 'private'" }),
   }).optional(),
   cover_url: URLSchema.optional(),
+  made_for_kids: z.boolean().optional(),
 }).strict();
 
 // TikTok parameters validation
 export const TikTokParamsSchema = z.object({
+  format: z.enum(["video", "image"], {
+    errorMap: () => ({ message: "TikTok format must be 'video' or 'image'" }),
+  }).optional(),
   privacy_status: z.enum([
     "PUBLIC_TO_EVERYONE",
     "MUTUAL_FOLLOW_FRIENDS",
@@ -143,6 +147,14 @@ export const PlatformParamsSchema = z.object({
 }).strict().optional();
 
 /**
+ * Schema for thread child posts
+ */
+export const ThreadChildSchema = z.object({
+  body: z.string().min(1, "Thread child body cannot be empty"),
+  media: z.array(MediaItemSchema).optional(),
+});
+
+/**
  * Schema for post.publish parameters
  */
 export const PostPublishSchema = z.object({
@@ -154,6 +166,7 @@ export const PostPublishSchema = z.object({
   require_confirmation: z.boolean().optional(),
   draft: z.boolean().optional(),
   platforms: PlatformParamsSchema,
+  thread: z.array(ThreadChildSchema).optional(),
 });
 
 /**

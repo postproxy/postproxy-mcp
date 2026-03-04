@@ -22,8 +22,10 @@ export async function handleHistoryList(
       // Determine overall status from post status
       let overallStatus = "unknown";
       
-      // Handle draft status first
-      if (post.status === "draft" || post.draft === true) {
+      // Handle special statuses first
+      if (post.status === "media_processing_failed") {
+        overallStatus = "media_processing_failed";
+      } else if (post.status === "draft" || post.draft === true) {
         overallStatus = "draft";
       } else if (post.status === "scheduled") {
         overallStatus = "pending";

@@ -21,6 +21,20 @@ export interface Profile {
   avatar_url?: string;
 }
 
+export interface ThreadChild {
+  body: string;
+  media?: string[];
+}
+
+export interface MediaAttachment {
+  id: string;
+  status: "pending" | "processed" | "failed";
+  error_message: string | null;
+  content_type: string;
+  source_url: string | null;
+  url: string | null;
+}
+
 export interface CreatePostParams {
   content: string;
   profile_group_id?: number; // Not used by API, kept for compatibility
@@ -30,17 +44,20 @@ export interface CreatePostParams {
   idempotency_key?: string;
   draft?: boolean; // If true, creates a draft post that won't publish automatically
   platforms?: PlatformParams; // Platform-specific parameters
+  thread?: ThreadChild[]; // Thread posts (supported on X and Threads)
 }
 
 export interface CreatePostResponse {
   id: string;
   body?: string; // API returns "body" field
   content?: string; // Some responses use "content"
-  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled" | "media_processing_failed";
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;
+  media?: MediaAttachment[];
   platforms: PlatformOutcome[];
+  thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
 }
 
 export interface PlatformOutcome {
@@ -62,24 +79,28 @@ export interface PostDetails {
   id: string;
   body?: string; // API returns "body" field
   content?: string; // Some responses use "content"
-  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled" | "media_processing_failed";
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;
   updated_at?: string;
+  media?: MediaAttachment[];
   platforms: PlatformOutcome[];
+  thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
 }
 
 export interface Post {
   id: string;
   body?: string; // API returns "body" field
   content?: string; // Some responses use "content"
-  status: "draft" | "pending" | "processing" | "processed" | "scheduled";
+  status: "draft" | "pending" | "processing" | "processed" | "scheduled" | "media_processing_failed";
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;
   updated_at?: string;
+  media?: MediaAttachment[];
   platforms: PlatformOutcome[];
+  thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
 }
 
 /**
@@ -102,21 +123,23 @@ export interface YouTubeParams {
   title?: string; // Video title
   privacy_status?: "public" | "unlisted" | "private"; // Video visibility
   cover_url?: string; // Custom thumbnail URL
+  made_for_kids?: boolean; // Whether the video is made for kids
 }
 
 /**
  * Platform-specific parameters for TikTok
  */
 export interface TikTokParams {
+  format?: "video" | "image"; // Content format (video is default)
   privacy_status?: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
-  photo_cover_index?: number; // Index (0-based) of photo to use as cover
-  auto_add_music?: boolean; // Enable automatic music
-  made_with_ai?: boolean; // Mark content as AI-generated
-  disable_comment?: boolean; // Disable comments on the post
-  disable_duet?: boolean; // Disable duets
-  disable_stitch?: boolean; // Disable stitches
-  brand_content_toggle?: boolean; // Mark video as paid partnership promoting a third-party business
-  brand_organic_toggle?: boolean; // Mark video as paid partnership promoting your own brand
+  photo_cover_index?: number; // Index (0-based) of photo to use as cover (image format)
+  auto_add_music?: boolean; // Enable automatic music (image format)
+  made_with_ai?: boolean; // Mark content as AI-generated (video format)
+  disable_comment?: boolean; // Disable comments
+  disable_duet?: boolean; // Disable duets (video format)
+  disable_stitch?: boolean; // Disable stitches (video format)
+  brand_content_toggle?: boolean; // Mark as paid partnership promoting a third-party business
+  brand_organic_toggle?: boolean; // Mark as paid partnership promoting your own brand
 }
 
 /**

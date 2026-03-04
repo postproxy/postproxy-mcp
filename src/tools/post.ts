@@ -19,6 +19,7 @@ export async function handlePostPublish(
     require_confirmation?: boolean;
     draft?: boolean;
     platforms?: Record<string, Record<string, any>>;
+    thread?: Array<{ body: string; media?: string[] }>;
   }
 ) {
   // Validate input
@@ -43,6 +44,7 @@ export async function handlePostPublish(
                 schedule_time: args.schedule,
                 draft: args.draft || false,
                 platforms: args.platforms || {},
+                thread: args.thread || [],
               },
             },
             null,
@@ -78,6 +80,7 @@ export async function handlePostPublish(
       idempotency_key: idempotencyKey,
       draft: draftValue, // Explicitly pass draft value (true, false, or undefined)
       platforms: args.platforms, // Platform-specific parameters
+      thread: args.thread, // Thread children (X and Threads only)
     });
 
     // Check if draft was requested but API ignored it
@@ -157,10 +160,12 @@ export async function handlePostStatus(
     }
 
     // Determine overall status from post status and platform statuses
-    let overallStatus: "pending" | "processing" | "complete" | "failed" | "draft" = "pending";
-    
+    let overallStatus: "pending" | "processing" | "complete" | "failed" | "draft" | "media_processing_failed" = "pending";
+
     // Handle draft status first
-    if (postDetails.status === "draft" || postDetails.draft === true) {
+    if (postDetails.status === "media_processing_failed") {
+      overallStatus = "media_processing_failed";
+    } else if (postDetails.status === "draft" || postDetails.draft === true) {
       overallStatus = "draft";
     } else if (postDetails.status === "scheduled") {
       overallStatus = "pending";
@@ -191,21 +196,27 @@ export async function handlePostStatus(
       overallStatus = "pending";
     }
 
+    const result: any = {
+      job_id: args.job_id,
+      overall_status: overallStatus,
+      draft: postDetails.draft || false,
+      status: postDetails.status,
+      platforms,
+    };
+
+    if (postDetails.media && postDetails.media.length > 0) {
+      result.media = postDetails.media;
+    }
+
+    if (postDetails.thread && postDetails.thread.length > 0) {
+      result.thread = postDetails.thread;
+    }
+
     return {
       content: [
         {
           type: "text",
-          text: JSON.stringify(
-            {
-              job_id: args.job_id,
-              overall_status: overallStatus,
-              draft: postDetails.draft || false,
-              status: postDetails.status,
-              platforms,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };
