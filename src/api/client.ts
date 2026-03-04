@@ -144,6 +144,11 @@ export class PostProxyClient {
       formData.append("platforms", JSON.stringify(params.platforms));
     }
 
+    // Add thread children
+    if (params.thread && params.thread.length > 0) {
+      formData.append("thread", JSON.stringify(params.thread));
+    }
+
     // Build headers (no Content-Type - fetch will set it with boundary for multipart)
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
@@ -385,6 +390,11 @@ export class PostProxyClient {
     // Draft parameter must be inside the post object, not at the top level
     if (params.draft !== undefined) {
       apiPayload.post.draft = params.draft;
+    }
+
+    // Thread children (X and Threads only)
+    if (params.thread && params.thread.length > 0) {
+      apiPayload.thread = params.thread;
     }
 
     // Platform-specific parameters

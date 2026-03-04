@@ -41,7 +41,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "post.publish",
-    description: "Publish a post to specified social media profiles. Supports text content, media attachments, scheduling, drafts, and platform-specific customization via the 'platforms' parameter.",
+    description: "Publish a post to specified social media profiles. Supports text content, media attachments, scheduling, drafts, threads (X and Threads only), and platform-specific customization via the 'platforms' parameter.",
     inputSchema: {
       type: "object",
       properties: {
@@ -86,17 +86,17 @@ export const TOOL_DEFINITIONS = [
             },
             youtube: {
               type: "object",
-              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL)",
+              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL), made_for_kids (bool)",
               additionalProperties: true,
             },
             tiktok: {
               type: "object",
-              description: "TikTok: privacy_status (PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY), photo_cover_index (integer), auto_add_music (bool), made_with_ai (bool), disable_comment (bool), disable_duet (bool), disable_stitch (bool), brand_content_toggle (bool), brand_organic_toggle (bool)",
+              description: "TikTok: format (video|image), privacy_status (PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY), photo_cover_index (integer, image only), auto_add_music (bool, image only), made_with_ai (bool, video only), disable_comment (bool), disable_duet (bool, video only), disable_stitch (bool, video only), brand_content_toggle (bool), brand_organic_toggle (bool)",
               additionalProperties: true,
             },
             facebook: {
               type: "object",
-              description: "Facebook: format (post|story), first_comment (string), page_id (string)",
+              description: "Facebook: format (post|story), first_comment (string), page_id (string, use profiles.placements to get available pages)",
               additionalProperties: true,
             },
             linkedin: {
@@ -106,16 +106,35 @@ export const TOOL_DEFINITIONS = [
             },
             twitter: {
               type: "object",
-              description: "Twitter/X: No platform-specific parameters available",
+              description: "Twitter/X: No platform-specific parameters available. Supports threads.",
               additionalProperties: true,
             },
             threads: {
               type: "object",
-              description: "Threads: No platform-specific parameters available",
+              description: "Threads: No platform-specific parameters available. Supports threads.",
               additionalProperties: true,
             },
           },
           additionalProperties: true,
+        },
+        thread: {
+          type: "array",
+          description: "Optional array of thread child posts (supported on X/Twitter and Threads only). The parent post is published first, then each child is published as a reply in order.",
+          items: {
+            type: "object",
+            properties: {
+              body: {
+                type: "string",
+                description: "Text content for this thread post",
+              },
+              media: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional array of media URLs for this thread post",
+              },
+            },
+            required: ["body"],
+          },
         },
       },
       required: ["content", "profiles"],
