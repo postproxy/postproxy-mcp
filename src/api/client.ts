@@ -14,6 +14,9 @@ import type {
   Post,
   Placement,
   StatsResponse,
+  PostQueue,
+  CreateQueueParams,
+  UpdateQueueParams,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
@@ -147,6 +150,14 @@ export class PostProxyClient {
     // Add thread children
     if (params.thread && params.thread.length > 0) {
       formData.append("thread", JSON.stringify(params.thread));
+    }
+
+    // Add queue parameters
+    if (params.queue_id) {
+      formData.append("queue_id", params.queue_id);
+      if (params.queue_priority) {
+        formData.append("queue_priority", params.queue_priority);
+      }
     }
 
     // Build headers (no Content-Type - fetch will set it with boundary for multipart)
@@ -425,6 +436,14 @@ export class PostProxyClient {
       }
     }
 
+    // Queue parameters (top-level, not inside post object)
+    if (params.queue_id) {
+      apiPayload.queue_id = params.queue_id;
+      if (params.queue_priority) {
+        apiPayload.queue_priority = params.queue_priority;
+      }
+    }
+
     // Log payload in debug mode to troubleshoot draft issues
     if (process.env.POSTPROXY_MCP_DEBUG === "1") {
       log("Creating post with payload:", JSON.stringify(apiPayload, null, 2));
@@ -536,5 +555,88 @@ export class PostProxyClient {
       queryParams.append("to", params.to);
     }
     return this.request<StatsResponse>("GET", `/posts/stats?${queryParams.toString()}`);
+  }
+
+  /**
+   * List all queues, optionally filtered by profile group
+   */
+  async listQueues(profileGroupId?: string): Promise<PostQueue[]> {
+    const path = profileGroupId
+      ? `/post_queues?profile_group_id=${profileGroupId}`
+      : "/post_queues";
+    const response = await this.request<any>("GET", path);
+    return this.extractArray<PostQueue>(response);
+  }
+
+  /**
+   * Get a single queue by ID
+   */
+  async getQueue(queueId: string): Promise<PostQueue> {
+    return this.request<PostQueue>("GET", `/post_queues/${queueId}`);
+  }
+
+  /**
+   * Get the next available timeslot for a queue
+   */
+  async getQueueNextSlot(queueId: string): Promise<{ next_slot: string }> {
+    return this.request<{ next_slot: string }>("GET", `/post_queues/${queueId}/next_slot`);
+  }
+
+  /**
+   * Create a new queue
+   */
+  async createQueue(params: CreateQueueParams): Promise<PostQueue> {
+    const apiPayload: any = {
+      profile_group_id: params.profile_group_id,
+      post_queue: {
+        name: params.name,
+      },
+    };
+    if (params.description !== undefined) {
+      apiPayload.post_queue.description = params.description;
+    }
+    if (params.timezone) {
+      apiPayload.post_queue.timezone = params.timezone;
+    }
+    if (params.jitter !== undefined) {
+      apiPayload.post_queue.jitter = params.jitter;
+    }
+    if (params.timeslots && params.timeslots.length > 0) {
+      apiPayload.post_queue.queue_timeslots_attributes = params.timeslots;
+    }
+    return this.request<PostQueue>("POST", "/post_queues", apiPayload);
+  }
+
+  /**
+   * Update a queue
+   */
+  async updateQueue(queueId: string, params: UpdateQueueParams): Promise<PostQueue> {
+    const apiPayload: any = { post_queue: {} };
+    if (params.name !== undefined) {
+      apiPayload.post_queue.name = params.name;
+    }
+    if (params.description !== undefined) {
+      apiPayload.post_queue.description = params.description;
+    }
+    if (params.timezone !== undefined) {
+      apiPayload.post_queue.timezone = params.timezone;
+    }
+    if (params.enabled !== undefined) {
+      apiPayload.post_queue.enabled = params.enabled;
+    }
+    if (params.jitter !== undefined) {
+      apiPayload.post_queue.jitter = params.jitter;
+    }
+    if (params.timeslots && params.timeslots.length > 0) {
+      apiPayload.post_queue.queue_timeslots_attributes = params.timeslots;
+    }
+    return this.request<PostQueue>("PATCH", `/post_queues/${queueId}`, apiPayload);
+  }
+
+  /**
+   * Delete a queue
+   */
+  async deleteQueue(queueId: string): Promise<void> {
+    await this.request<void>("DELETE", `/post_queues/${queueId}`);
   }
 }

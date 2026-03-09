@@ -62,6 +62,7 @@ export async function handleHistoryList(
         content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
         created_at: post.created_at,
         overall_status: overallStatus,
+        scheduled_at: post.scheduled_at || null,
         draft: post.draft || false,
         platforms_count: post.platforms?.length || 0,
       };

@@ -20,6 +20,8 @@ export async function handlePostPublish(
     draft?: boolean;
     platforms?: Record<string, Record<string, any>>;
     thread?: Array<{ body: string; media?: string[] }>;
+    queue_id?: string;
+    queue_priority?: "high" | "medium" | "low";
   }
 ) {
   // Validate input
@@ -81,6 +83,8 @@ export async function handlePostPublish(
       draft: draftValue, // Explicitly pass draft value (true, false, or undefined)
       platforms: args.platforms, // Platform-specific parameters
       thread: args.thread, // Thread children (X and Threads only)
+      queue_id: args.queue_id,
+      queue_priority: args.queue_priority,
     });
 
     // Check if draft was requested but API ignored it
