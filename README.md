@@ -137,6 +137,8 @@ Publish a post to specified social media profiles.
 - `idempotency_key` (string, optional): Idempotency key for deduplication
 - `require_confirmation` (boolean, optional): If true, return summary without publishing
 - `draft` (boolean, optional): If true, creates a draft post that won't publish automatically
+- `queue_id` (string, optional): Queue ID to add the post to. The queue will automatically assign a timeslot. Do not use together with `schedule`.
+- `queue_priority` (string, optional): Priority when adding to a queue: `high`, `medium` (default), or `low`
 - `platforms` (object, optional): Platform-specific parameters. Key is platform name (e.g., "instagram", "youtube", "tiktok"), value is object with platform-specific options. See [Platform Parameters Reference](https://postproxy.dev/reference/platform-parameters/) for full documentation.
 
   Example:
@@ -286,6 +288,121 @@ Get stats snapshots for one or more posts. Returns all matching snapshots so you
 | Pinterest | `impressions`, `likes`, `comments`, `saved`, `outbound_clicks` |
 
 **Notes**: Instagram stories do not return stats. TikTok stats require the post to have a public ID.
+
+### Queue Management
+
+#### `queues.list`
+
+List all posting queues. Queues automatically schedule posts into recurring weekly timeslots with priority-based ordering.
+
+**Parameters**:
+- `profile_group_id` (string, optional): Filter queues by profile group
+
+**Returns**:
+```json
+{
+  "queues": [
+    {
+      "id": "q1abc",
+      "name": "Morning Posts",
+      "description": "Daily morning content",
+      "timezone": "America/New_York",
+      "enabled": true,
+      "jitter": 10,
+      "profile_group_id": "pg123",
+      "timeslots": ["Monday at 09:00 (id: 1)", "Wednesday at 09:00 (id: 2)"],
+      "posts_count": 5
+    }
+  ]
+}
+```
+
+#### `queues.get`
+
+Get details of a single posting queue including its timeslots and post count.
+
+**Parameters**:
+- `queue_id` (string, required): Queue ID
+
+#### `queues.create`
+
+Create a new posting queue with weekly timeslots.
+
+**Parameters**:
+- `profile_group_id` (string, required): Profile group ID to connect the queue to (use `profiles.list` to find this)
+- `name` (string, required): Queue name
+- `description` (string, optional): Optional description
+- `timezone` (string, optional): IANA timezone name (e.g. `America/New_York`). Default: `UTC`
+- `jitter` (number, optional): Random offset in minutes (0–60) applied to scheduled times for natural posting patterns. Default: `0`
+- `timeslots` (array, optional): Initial weekly timeslots. Each object has `day` (0=Sunday through 6=Saturday) and `time` (24-hour `HH:MM` format)
+
+**Example**:
+```json
+{
+  "profile_group_id": "pg123",
+  "name": "Weekday Mornings",
+  "timezone": "America/New_York",
+  "jitter": 10,
+  "timeslots": [
+    { "day": 1, "time": "09:00" },
+    { "day": 2, "time": "09:00" },
+    { "day": 3, "time": "09:00" },
+    { "day": 4, "time": "09:00" },
+    { "day": 5, "time": "09:00" }
+  ]
+}
+```
+
+#### `queues.update`
+
+Update a queue's settings, timeslots, or pause/unpause it. Changes to timezone or timeslots trigger rearrangement of all queued posts.
+
+**Parameters**:
+- `queue_id` (string, required): Queue ID to update
+- `name` (string, optional): New queue name
+- `description` (string, optional): New description
+- `timezone` (string, optional): IANA timezone name
+- `enabled` (boolean, optional): Set to `false` to pause the queue, `true` to unpause
+- `jitter` (number, optional): Random offset in minutes (0–60)
+- `timeslots` (array, optional): Timeslots to add or remove. To add: `{ "day": 1, "time": "09:00" }`. To remove: `{ "id": 42, "_destroy": true }`.
+
+#### `queues.delete`
+
+Delete a posting queue. Posts in the queue will have their queue reference removed but will not be deleted.
+
+**Parameters**:
+- `queue_id` (string, required): Queue ID to delete
+
+#### `queues.next_slot`
+
+Get the next available timeslot for a queue.
+
+**Parameters**:
+- `queue_id` (string, required): Queue ID
+
+**Returns**:
+```json
+{
+  "next_slot": "2026-03-11T14:00:00Z"
+}
+```
+
+#### Adding Posts to a Queue
+
+When publishing a post with `post.publish`, you can add it to a queue instead of scheduling it manually:
+
+- `queue_id` (string, optional): Queue ID to add the post to. The queue will automatically assign a timeslot. Do not use together with `schedule`.
+- `queue_priority` (string, optional): Priority level: `high`, `medium` (default), or `low`. Higher priority posts get earlier timeslots.
+
+**Example**:
+```json
+{
+  "content": "Queued post content",
+  "profiles": ["twitter", "linkedin"],
+  "queue_id": "q1abc",
+  "queue_priority": "high"
+}
+```
 
 ### History
 
@@ -655,6 +772,28 @@ Get stats for posts abc123 and def456 filtered to Instagram only, from February 
 
 ```
 Show me the placements for my LinkedIn profile prof123
+```
+
+### Queue Management
+
+```
+Show me all my posting queues
+```
+
+```
+Create a queue called "Weekday Mornings" for profile group pg123, timezone America/New_York, with timeslots Monday through Friday at 9am
+```
+
+```
+Add a post to queue q1abc with high priority: "Check out our latest feature!"
+```
+
+```
+Pause queue q1abc
+```
+
+```
+What's the next available slot for queue q1abc?
 ```
 
 ### View History

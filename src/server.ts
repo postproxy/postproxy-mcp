@@ -15,6 +15,14 @@ import {
   handlePostStats,
 } from "./tools/post.js";
 import { handleHistoryList } from "./tools/history.js";
+import {
+  handleQueuesList,
+  handleQueuesGet,
+  handleQueuesCreate,
+  handleQueuesUpdate,
+  handleQueuesDelete,
+  handleQueuesNextSlot,
+} from "./tools/queue.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
 import { logToolCall } from "./utils/logger.js";
 
@@ -136,6 +144,15 @@ export const TOOL_DEFINITIONS = [
             required: ["body"],
           },
         },
+        queue_id: {
+          type: "string",
+          description: "Optional queue ID to add the post to. The queue will automatically assign a timeslot. Do not use together with 'schedule'.",
+        },
+        queue_priority: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+          description: "Optional priority when adding to a queue (default: medium). Higher priority posts get earlier timeslots.",
+        },
       },
       required: ["content", "profiles"],
     },
@@ -236,6 +253,156 @@ export const TOOL_DEFINITIONS = [
       required: ["profile_id"],
     },
   },
+  {
+    name: "queues.list",
+    description: "List all posting queues. Queues automatically schedule posts into recurring weekly timeslots with priority-based ordering.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_group_id: {
+          type: "string",
+          description: "Optional profile group ID to filter queues",
+        },
+      },
+    },
+  },
+  {
+    name: "queues.get",
+    description: "Get details of a single posting queue including its timeslots and post count",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queue_id: {
+          type: "string",
+          description: "Queue ID",
+        },
+      },
+      required: ["queue_id"],
+    },
+  },
+  {
+    name: "queues.create",
+    description: "Create a new posting queue with weekly timeslots. Use profiles.list to find the profile_group_id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_group_id: {
+          type: "string",
+          description: "Profile group ID to connect the queue to",
+        },
+        name: {
+          type: "string",
+          description: "Queue name",
+        },
+        description: {
+          type: "string",
+          description: "Optional description",
+        },
+        timezone: {
+          type: "string",
+          description: "IANA timezone name (e.g. 'America/New_York'). Default: UTC",
+        },
+        jitter: {
+          type: "number",
+          description: "Random offset in minutes (0-60) applied to scheduled times for natural posting patterns. Default: 0",
+        },
+        timeslots: {
+          type: "array",
+          description: "Initial weekly timeslots",
+          items: {
+            type: "object",
+            properties: {
+              day: {
+                type: "number",
+                description: "Day of week: 0=Sunday, 1=Monday, ..., 6=Saturday",
+              },
+              time: {
+                type: "string",
+                description: "Time in 24-hour HH:MM format (e.g. '09:00', '14:30')",
+              },
+            },
+            required: ["day", "time"],
+          },
+        },
+      },
+      required: ["profile_group_id", "name"],
+    },
+  },
+  {
+    name: "queues.update",
+    description: "Update a queue's settings, timeslots, or pause/unpause it. Changes to timezone or timeslots trigger rearrangement of all queued posts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queue_id: {
+          type: "string",
+          description: "Queue ID to update",
+        },
+        name: {
+          type: "string",
+          description: "New queue name",
+        },
+        description: {
+          type: "string",
+          description: "New description",
+        },
+        timezone: {
+          type: "string",
+          description: "IANA timezone name",
+        },
+        enabled: {
+          type: "boolean",
+          description: "Set to false to pause the queue, true to unpause",
+        },
+        jitter: {
+          type: "number",
+          description: "Random offset in minutes (0-60)",
+        },
+        timeslots: {
+          type: "array",
+          description: "Timeslots to add or remove. To add: {day, time}. To remove: {id, _destroy: true}.",
+          items: {
+            type: "object",
+            properties: {
+              day: { type: "number", description: "Day of week (0-6) — for adding" },
+              time: { type: "string", description: "Time HH:MM — for adding" },
+              id: { type: "number", description: "Timeslot ID — for removing" },
+              _destroy: { type: "boolean", description: "Set to true to remove a timeslot by id" },
+            },
+          },
+        },
+      },
+      required: ["queue_id"],
+    },
+  },
+  {
+    name: "queues.delete",
+    description: "Delete a posting queue. Posts in the queue will have their queue reference removed but will not be deleted.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queue_id: {
+          type: "string",
+          description: "Queue ID to delete",
+        },
+      },
+      required: ["queue_id"],
+    },
+  },
+  {
+    name: "queues.next_slot",
+    description: "Get the next available timeslot for a queue",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queue_id: {
+          type: "string",
+          description: "Queue ID",
+        },
+      },
+      required: ["queue_id"],
+    },
+  },
 ] as const;
 
 export async function createMCPServer(client: PostProxyClient): Promise<Server> {
@@ -284,6 +451,18 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handlePostStats(client, args as any);
         case "profiles.placements":
           return await handleProfilesPlacements(client, args as any);
+        case "queues.list":
+          return await handleQueuesList(client, args as any);
+        case "queues.get":
+          return await handleQueuesGet(client, args as any);
+        case "queues.create":
+          return await handleQueuesCreate(client, args as any);
+        case "queues.update":
+          return await handleQueuesUpdate(client, args as any);
+        case "queues.delete":
+          return await handleQueuesDelete(client, args as any);
+        case "queues.next_slot":
+          return await handleQueuesNextSlot(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
       }

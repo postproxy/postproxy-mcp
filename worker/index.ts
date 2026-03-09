@@ -403,6 +403,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
    * @param platforms {string} Optional JSON string of platform-specific parameters
    * @param media_files {string} Optional JSON array of file objects with {filename, data (base64), content_type?}
    * @param thread {string} Optional JSON array of thread child posts [{body, media?}]. Supported on X and Threads only.
+   * @param queue_id {string} Optional queue ID to add the post to
+   * @param queue_priority {string} Optional priority when adding to a queue (high, medium, low)
    * @return {Promise<string>} Post creation result as JSON
    */
   async postPublish(
@@ -415,7 +417,9 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     draft?: boolean,
     platforms?: string,
     media_files?: string,
-    thread?: string
+    thread?: string,
+    queue_id?: string,
+    queue_priority?: string
   ): Promise<string> {
     this.getApiKey(); // Validate API key is present
 
@@ -574,6 +578,13 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
       if (threadChildren && threadChildren.length > 0) {
         apiPayload.thread = threadChildren;
+      }
+
+      if (queue_id) {
+        apiPayload.queue_id = queue_id;
+        if (queue_priority) {
+          apiPayload.queue_priority = queue_priority;
+        }
       }
 
       const extraHeaders: Record<string, string> = {
@@ -787,6 +798,171 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
+   * List all queues
+   * @param profile_group_id {string} Optional profile group ID to filter queues
+   * @return {Promise<string>} List of queues as JSON
+   */
+  async queuesList(profile_group_id?: string): Promise<string> {
+    this.getApiKey();
+
+    const path = profile_group_id
+      ? `/post_queues?profile_group_id=${profile_group_id}`
+      : "/post_queues";
+    const response = await this.apiRequest<any>("GET", path);
+    const queues = this.extractArray<any>(response);
+
+    return JSON.stringify({ queues }, null, 2);
+  }
+
+  /**
+   * Get a single queue by ID
+   * @param queue_id {string} Queue ID
+   * @return {Promise<string>} Queue details as JSON
+   */
+  async queuesGet(queue_id: string): Promise<string> {
+    if (!queue_id) {
+      throw new Error("queue_id is required");
+    }
+
+    const queue = await this.apiRequest<any>("GET", `/post_queues/${queue_id}`);
+    return JSON.stringify(queue, null, 2);
+  }
+
+  /**
+   * Create a new posting queue
+   * @param profile_group_id {string} Profile group ID to connect the queue to
+   * @param name {string} Queue name
+   * @param description {string} Optional description
+   * @param timezone {string} Optional IANA timezone (default: UTC)
+   * @param jitter {number} Optional random offset in minutes (0-60)
+   * @param timeslots {string} Optional JSON array of timeslots [{day, time}]
+   * @return {Promise<string>} Created queue as JSON
+   */
+  async queuesCreate(
+    profile_group_id: string,
+    name: string,
+    description?: string,
+    timezone?: string,
+    jitter?: number,
+    timeslots?: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!profile_group_id) {
+      throw new Error("profile_group_id is required");
+    }
+    if (!name) {
+      throw new Error("name is required");
+    }
+
+    const apiPayload: any = {
+      profile_group_id,
+      post_queue: { name },
+    };
+    if (description !== undefined) {
+      apiPayload.post_queue.description = description;
+    }
+    if (timezone) {
+      apiPayload.post_queue.timezone = timezone;
+    }
+    if (jitter !== undefined) {
+      apiPayload.post_queue.jitter = jitter;
+    }
+    if (timeslots) {
+      try {
+        const parsed = JSON.parse(timeslots);
+        if (Array.isArray(parsed)) {
+          apiPayload.post_queue.queue_timeslots_attributes = parsed;
+        }
+      } catch {
+        throw new Error("Invalid timeslots parameter: must be valid JSON array");
+      }
+    }
+
+    const queue = await this.apiRequest<any>("POST", "/post_queues", apiPayload);
+    return JSON.stringify({ ...queue, message: "Queue created successfully" }, null, 2);
+  }
+
+  /**
+   * Update a queue's settings
+   * @param queue_id {string} Queue ID to update
+   * @param name {string} Optional new name
+   * @param description {string} Optional new description
+   * @param timezone {string} Optional IANA timezone
+   * @param enabled {boolean} Optional pause/unpause
+   * @param jitter {number} Optional random offset in minutes (0-60)
+   * @param timeslots {string} Optional JSON array of timeslots to add/remove
+   * @return {Promise<string>} Updated queue as JSON
+   */
+  async queuesUpdate(
+    queue_id: string,
+    name?: string,
+    description?: string,
+    timezone?: string,
+    enabled?: boolean,
+    jitter?: number,
+    timeslots?: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!queue_id) {
+      throw new Error("queue_id is required");
+    }
+
+    const apiPayload: any = { post_queue: {} };
+    if (name !== undefined) apiPayload.post_queue.name = name;
+    if (description !== undefined) apiPayload.post_queue.description = description;
+    if (timezone !== undefined) apiPayload.post_queue.timezone = timezone;
+    if (enabled !== undefined) apiPayload.post_queue.enabled = enabled;
+    if (jitter !== undefined) apiPayload.post_queue.jitter = jitter;
+    if (timeslots) {
+      try {
+        const parsed = JSON.parse(timeslots);
+        if (Array.isArray(parsed)) {
+          apiPayload.post_queue.queue_timeslots_attributes = parsed;
+        }
+      } catch {
+        throw new Error("Invalid timeslots parameter: must be valid JSON array");
+      }
+    }
+
+    const queue = await this.apiRequest<any>("PATCH", `/post_queues/${queue_id}`, apiPayload);
+    return JSON.stringify({ ...queue, message: "Queue updated successfully" }, null, 2);
+  }
+
+  /**
+   * Delete a posting queue
+   * @param queue_id {string} Queue ID to delete
+   * @return {Promise<string>} Deletion confirmation as JSON
+   */
+  async queuesDelete(queue_id: string): Promise<string> {
+    this.getApiKey();
+
+    if (!queue_id) {
+      throw new Error("queue_id is required");
+    }
+
+    await this.apiRequest<void>("DELETE", `/post_queues/${queue_id}`);
+    return JSON.stringify({ queue_id, deleted: true }, null, 2);
+  }
+
+  /**
+   * Get the next available timeslot for a queue
+   * @param queue_id {string} Queue ID
+   * @return {Promise<string>} Next slot as JSON
+   */
+  async queuesNextSlot(queue_id: string): Promise<string> {
+    this.getApiKey();
+
+    if (!queue_id) {
+      throw new Error("queue_id is required");
+    }
+
+    const result = await this.apiRequest<any>("GET", `/post_queues/${queue_id}/next_slot`);
+    return JSON.stringify(result, null, 2);
+  }
+
+  /**
    * MCP tool definitions
    */
   private getTools() {
@@ -817,6 +993,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
             platforms: { type: "string", description: "Optional JSON string of platform-specific parameters. YouTube supports: title, privacy_status, cover_url, made_for_kids. TikTok supports: format (video|image), privacy_status, and more." },
             media_files: { type: "string", description: "Optional JSON array of file objects for direct upload. Each object must have 'filename' and 'data' (base64-encoded file content), optionally 'content_type'. Example: [{\"filename\":\"photo.jpg\",\"data\":\"base64...\"}]" },
             thread: { type: "string", description: "Optional JSON array of thread child posts. Supported on X and Threads only. Each object must have 'body' (string), optionally 'media' (array of URLs). Example: [{\"body\":\"Reply 1\"},{\"body\":\"Reply 2\",\"media\":[\"https://...\"]}]" },
+            queue_id: { type: "string", description: "Optional queue ID to add the post to. The queue will automatically assign a timeslot. Do not use together with 'schedule'." },
+            queue_priority: { type: "string", description: "Optional priority when adding to a queue: high, medium (default), or low" },
           },
           required: ["content", "targets"],
         },
@@ -890,6 +1068,83 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           required: ["profile_id"],
         },
       },
+      {
+        name: "queuesList",
+        description: "List all posting queues. Queues automatically schedule posts into recurring weekly timeslots.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            profile_group_id: { type: "string", description: "Optional profile group ID to filter queues" },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "queuesGet",
+        description: "Get details of a single posting queue including its timeslots and post count",
+        inputSchema: {
+          type: "object",
+          properties: {
+            queue_id: { type: "string", description: "Queue ID" },
+          },
+          required: ["queue_id"],
+        },
+      },
+      {
+        name: "queuesCreate",
+        description: "Create a new posting queue with weekly timeslots",
+        inputSchema: {
+          type: "object",
+          properties: {
+            profile_group_id: { type: "string", description: "Profile group ID to connect the queue to" },
+            name: { type: "string", description: "Queue name" },
+            description: { type: "string", description: "Optional description" },
+            timezone: { type: "string", description: "IANA timezone name (default: UTC)" },
+            jitter: { type: "number", description: "Random offset in minutes (0-60, default: 0)" },
+            timeslots: { type: "string", description: "Optional JSON array of timeslots [{\"day\":1,\"time\":\"09:00\"}]. Day: 0=Sun..6=Sat" },
+          },
+          required: ["profile_group_id", "name"],
+        },
+      },
+      {
+        name: "queuesUpdate",
+        description: "Update a queue's settings, timeslots, or pause/unpause it",
+        inputSchema: {
+          type: "object",
+          properties: {
+            queue_id: { type: "string", description: "Queue ID to update" },
+            name: { type: "string", description: "New queue name" },
+            description: { type: "string", description: "New description" },
+            timezone: { type: "string", description: "IANA timezone name" },
+            enabled: { type: "boolean", description: "Set false to pause, true to unpause" },
+            jitter: { type: "number", description: "Random offset in minutes (0-60)" },
+            timeslots: { type: "string", description: "JSON array of timeslots to add [{\"day\":1,\"time\":\"09:00\"}] or remove [{\"id\":42,\"_destroy\":true}]" },
+          },
+          required: ["queue_id"],
+        },
+      },
+      {
+        name: "queuesDelete",
+        description: "Delete a posting queue. Posts in the queue will not be deleted.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            queue_id: { type: "string", description: "Queue ID to delete" },
+          },
+          required: ["queue_id"],
+        },
+      },
+      {
+        name: "queuesNextSlot",
+        description: "Get the next available timeslot for a queue",
+        inputSchema: {
+          type: "object",
+          properties: {
+            queue_id: { type: "string", description: "Queue ID" },
+          },
+          required: ["queue_id"],
+        },
+      },
     ];
   }
 
@@ -947,7 +1202,9 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
                 args.draft,
                 args.platforms,
                 args.media_files,
-                args.thread
+                args.thread,
+                args.queue_id,
+                args.queue_priority
               );
               break;
             case "postStatus":
@@ -967,6 +1224,39 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
               break;
             case "profilesPlacements":
               result = await this.profilesPlacements(args.profile_id);
+              break;
+            case "queuesList":
+              result = await this.queuesList(args?.profile_group_id);
+              break;
+            case "queuesGet":
+              result = await this.queuesGet(args.queue_id);
+              break;
+            case "queuesCreate":
+              result = await this.queuesCreate(
+                args.profile_group_id,
+                args.name,
+                args.description,
+                args.timezone,
+                args.jitter,
+                args.timeslots
+              );
+              break;
+            case "queuesUpdate":
+              result = await this.queuesUpdate(
+                args.queue_id,
+                args.name,
+                args.description,
+                args.timezone,
+                args.enabled,
+                args.jitter,
+                args.timeslots
+              );
+              break;
+            case "queuesDelete":
+              result = await this.queuesDelete(args.queue_id);
+              break;
+            case "queuesNextSlot":
+              result = await this.queuesNextSlot(args.queue_id);
               break;
             default:
               return {

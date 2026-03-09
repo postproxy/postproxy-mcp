@@ -45,6 +45,8 @@ export interface CreatePostParams {
   draft?: boolean; // If true, creates a draft post that won't publish automatically
   platforms?: PlatformParams; // Platform-specific parameters
   thread?: ThreadChild[]; // Thread posts (supported on X and Threads)
+  queue_id?: string; // Queue ID to add post to
+  queue_priority?: "high" | "medium" | "low"; // Queue priority (default: medium)
 }
 
 export interface CreatePostResponse {
@@ -220,4 +222,52 @@ export interface PostStats {
  */
 export interface StatsResponse {
   data: Record<string, PostStats>;
+}
+
+/**
+ * Queue timeslot definition
+ */
+export interface QueueTimeslot {
+  id: number;
+  day: number; // 0=Sunday through 6=Saturday
+  time: string; // HH:MM format
+}
+
+/**
+ * Post queue
+ */
+export interface PostQueue {
+  id: string;
+  name: string;
+  description: string | null;
+  timezone: string;
+  enabled: boolean;
+  jitter: number;
+  profile_group_id: string;
+  timeslots: QueueTimeslot[];
+  posts_count: number;
+}
+
+/**
+ * Parameters for creating a queue
+ */
+export interface CreateQueueParams {
+  profile_group_id: string;
+  name: string;
+  description?: string;
+  timezone?: string;
+  jitter?: number;
+  timeslots?: Array<{ day: number; time: string }>;
+}
+
+/**
+ * Parameters for updating a queue
+ */
+export interface UpdateQueueParams {
+  name?: string;
+  description?: string;
+  timezone?: string;
+  enabled?: boolean;
+  jitter?: number;
+  timeslots?: Array<{ day: number; time: string } | { id: number; _destroy: true }>;
 }
