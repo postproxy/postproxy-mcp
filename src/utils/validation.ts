@@ -119,9 +119,10 @@ export const TikTokParamsSchema = z.object({
 
 // Facebook parameters validation
 export const FacebookParamsSchema = z.object({
-  format: z.enum(["post", "story"], {
-    errorMap: () => ({ message: "Facebook format must be 'post' or 'story'" }),
+  format: z.enum(["post", "story", "reel"], {
+    errorMap: () => ({ message: "Facebook format must be 'post', 'story', or 'reel'" }),
   }).optional(),
+  title: z.string().optional(),
   first_comment: z.string().optional(),
   page_id: z.string().optional(),
 }).strict();
