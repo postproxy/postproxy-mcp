@@ -104,7 +104,7 @@ export const TOOL_DEFINITIONS = [
             },
             facebook: {
               type: "object",
-              description: "Facebook: format (post|story), first_comment (string), page_id (string, use profiles.placements to get available pages)",
+              description: "Facebook: format (post|story|reel), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages)",
               additionalProperties: true,
             },
             linkedin: {

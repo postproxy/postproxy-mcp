@@ -148,7 +148,8 @@ export interface TikTokParams {
  * Platform-specific parameters for Facebook
  */
 export interface FacebookParams {
-  format?: "post" | "story";
+  format?: "post" | "story" | "reel";
+  title?: string; // Title of the reel
   first_comment?: string; // Comment to add after posting
   page_id?: string; // Page ID when you have multiple pages
 }
