@@ -289,6 +289,71 @@ export async function handlePostPublishDraft(
   }
 }
 
+export async function handlePostUpdate(
+  client: PostProxyClient,
+  args: {
+    job_id: string;
+    content?: string;
+    profiles?: string[];
+    schedule?: string;
+    draft?: boolean;
+    media?: string[];
+    platforms?: Record<string, Record<string, any>>;
+    thread?: Array<{ body: string; media?: string[] }>;
+    queue_id?: string;
+    queue_priority?: "high" | "medium" | "low";
+  }
+) {
+  if (!args.job_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "job_id is required");
+  }
+
+  try {
+    const response = await client.updatePost(args.job_id, {
+      content: args.content,
+      profiles: args.profiles,
+      schedule: args.schedule,
+      draft: args.draft,
+      media: args.media,
+      platforms: args.platforms,
+      thread: args.thread,
+      queue_id: args.queue_id,
+      queue_priority: args.queue_priority,
+    });
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              job_id: response.id,
+              status: response.status,
+              draft: response.draft,
+              scheduled_at: response.scheduled_at,
+              created_at: response.created_at,
+              message: "Post updated successfully",
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "post.update");
+
+    if (error instanceof Error && "code" in error) {
+      throw error;
+    }
+
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to update post: ${(error as Error).message}`
+    );
+  }
+}
+
 export async function handlePostDelete(
   client: PostProxyClient,
   args: { job_id: string }

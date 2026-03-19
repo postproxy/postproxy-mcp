@@ -10,6 +10,7 @@ import type {
   Profile,
   CreatePostParams,
   CreatePostResponse,
+  UpdatePostParams,
   PostDetails,
   Post,
   Placement,
@@ -509,6 +510,58 @@ export class PostProxyClient {
     const path = queryString ? `/posts?${queryString}` : "/posts";
     const response = await this.request<any>("GET", path);
     return this.extractArray<Post>(response);
+  }
+
+  /**
+   * Update an existing post
+   */
+  async updatePost(postId: string, params: UpdatePostParams): Promise<PostDetails> {
+    const apiPayload: any = {};
+
+    // Build post object (merged fields)
+    const postObj: any = {};
+    if (params.content !== undefined) {
+      postObj.body = params.content;
+    }
+    if (params.schedule !== undefined) {
+      postObj.scheduled_at = params.schedule;
+    }
+    if (params.draft !== undefined) {
+      postObj.draft = params.draft;
+    }
+    if (Object.keys(postObj).length > 0) {
+      apiPayload.post = postObj;
+    }
+
+    // Profiles (full replace)
+    if (params.profiles !== undefined) {
+      apiPayload.profiles = params.profiles;
+    }
+
+    // Platform params (merged)
+    if (params.platforms && Object.keys(params.platforms).length > 0) {
+      apiPayload.platforms = params.platforms;
+    }
+
+    // Media (full replace)
+    if (params.media !== undefined) {
+      apiPayload.media = params.media;
+    }
+
+    // Thread (full replace)
+    if (params.thread !== undefined) {
+      apiPayload.thread = params.thread;
+    }
+
+    // Queue
+    if (params.queue_id !== undefined) {
+      apiPayload.queue_id = params.queue_id;
+      if (params.queue_priority) {
+        apiPayload.queue_priority = params.queue_priority;
+      }
+    }
+
+    return this.request<PostDetails>("PATCH", `/posts/${postId}`, apiPayload);
   }
 
   /**

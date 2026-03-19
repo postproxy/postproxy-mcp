@@ -10,6 +10,7 @@ import { handleProfilesList, handleProfilesPlacements } from "./tools/profiles.j
 import {
   handlePostPublish,
   handlePostStatus,
+  handlePostUpdate,
   handlePostDelete,
   handlePostPublishDraft,
   handlePostStats,
@@ -180,6 +181,68 @@ export const TOOL_DEFINITIONS = [
         job_id: {
           type: "string",
           description: "Job ID of the draft post to publish",
+        },
+      },
+      required: ["job_id"],
+    },
+  },
+  {
+    name: "post.update",
+    description: "Update an existing post. Only drafts or scheduled posts (more than 5 min before publish) can be updated. Only send fields you want to change — omitted fields are left unchanged.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: {
+          type: "string",
+          description: "Post ID to update",
+        },
+        content: {
+          type: "string",
+          description: "Updated text content",
+        },
+        profiles: {
+          type: "array",
+          items: { type: "string" },
+          description: "Replace all profiles (array of profile IDs or platform names). Full replace — omit to keep existing.",
+        },
+        schedule: {
+          type: "string",
+          description: "Updated ISO 8601 scheduled time",
+        },
+        draft: {
+          type: "boolean",
+          description: "Set or unset draft status",
+        },
+        media: {
+          type: "array",
+          items: { type: "string" },
+          description: "Replace all media (array of media URLs). Full replace — send empty array to remove all. Omit to keep existing.",
+        },
+        platforms: {
+          type: "object",
+          description: "Platform-specific parameters (merged with existing). Same structure as post.publish.",
+          additionalProperties: true,
+        },
+        thread: {
+          type: "array",
+          description: "Replace all thread children (full replace). Send empty array to remove all. Omit to keep existing.",
+          items: {
+            type: "object",
+            properties: {
+              body: { type: "string", description: "Text content for this thread post" },
+              media: { type: "array", items: { type: "string" }, description: "Optional media URLs" },
+            },
+            required: ["body"],
+          },
+        },
+        queue_id: {
+          type: "string",
+          description: "Queue ID to assign the post to",
+        },
+        queue_priority: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+          description: "Queue priority",
         },
       },
       required: ["job_id"],
@@ -443,6 +506,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handlePostStatus(client, args as any);
         case "post.publish_draft":
           return await handlePostPublishDraft(client, args as any);
+        case "post.update":
+          return await handlePostUpdate(client, args as any);
         case "post.delete":
           return await handlePostDelete(client, args as any);
         case "history.list":

@@ -262,6 +262,21 @@ export interface CreateQueueParams {
 }
 
 /**
+ * Parameters for updating a post
+ */
+export interface UpdatePostParams {
+  content?: string;
+  profiles?: string[];
+  schedule?: string;
+  draft?: boolean;
+  media?: string[];
+  platforms?: PlatformParams;
+  thread?: ThreadChild[];
+  queue_id?: string;
+  queue_priority?: "high" | "medium" | "low";
+}
+
+/**
  * Parameters for updating a queue
  */
 export interface UpdateQueueParams {
