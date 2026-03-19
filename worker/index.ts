@@ -693,6 +693,128 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
+   * Update an existing post (drafts or scheduled posts only)
+   * @param job_id {string} Post ID to update
+   * @param content {string} Optional updated text content
+   * @param targets {string} Optional comma-separated list of target profile IDs (full replace)
+   * @param schedule {string} Optional updated ISO 8601 scheduled time
+   * @param draft {boolean} Optional set or unset draft status
+   * @param media {string} Optional comma-separated list of media URLs (full replace, empty string to remove all)
+   * @param platforms {string} Optional JSON string of platform-specific parameters (merged)
+   * @param thread {string} Optional JSON array of thread children (full replace, empty array to remove all)
+   * @param queue_id {string} Optional queue ID to assign
+   * @param queue_priority {string} Optional queue priority (high, medium, low)
+   * @return {Promise<string>} Updated post as JSON
+   */
+  async postUpdate(
+    job_id: string,
+    content?: string,
+    targets?: string,
+    schedule?: string,
+    draft?: boolean,
+    media?: string,
+    platforms?: string,
+    thread?: string,
+    queue_id?: string,
+    queue_priority?: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!job_id) {
+      throw new Error("job_id is required");
+    }
+
+    const apiPayload: any = {};
+
+    // Build post object (merged fields)
+    const postObj: any = {};
+    if (content !== undefined) {
+      postObj.body = content;
+    }
+    if (schedule !== undefined) {
+      postObj.scheduled_at = schedule;
+    }
+    if (draft !== undefined) {
+      postObj.draft = draft;
+    }
+    if (Object.keys(postObj).length > 0) {
+      apiPayload.post = postObj;
+    }
+
+    // Profiles (full replace)
+    if (targets !== undefined) {
+      const targetIds = targets.split(",").map((t) => t.trim()).filter(Boolean);
+      const profiles = await this.getAllProfiles();
+      const profilesMap = new Map<string, Profile>();
+      for (const profile of profiles) {
+        profilesMap.set(profile.id, profile);
+      }
+      const platformNames: string[] = [];
+      for (const targetId of targetIds) {
+        const profile = profilesMap.get(targetId);
+        if (!profile) {
+          throw new Error(`Target ${targetId} not found`);
+        }
+        platformNames.push(profile.platform);
+      }
+      apiPayload.profiles = platformNames;
+    }
+
+    // Platform params (merged)
+    if (platforms) {
+      try {
+        apiPayload.platforms = JSON.parse(platforms);
+      } catch {
+        throw new Error("Invalid platforms parameter: must be valid JSON");
+      }
+    }
+
+    // Media (full replace)
+    if (media !== undefined) {
+      apiPayload.media = media === "" ? [] : media.split(",").map((m) => m.trim()).filter(Boolean);
+    }
+
+    // Thread (full replace)
+    if (thread !== undefined) {
+      try {
+        const parsed = JSON.parse(thread);
+        if (!Array.isArray(parsed)) {
+          throw new Error("thread must be an array");
+        }
+        apiPayload.thread = parsed;
+      } catch (e: any) {
+        if (e.message.includes("thread")) {
+          throw e;
+        }
+        throw new Error("Invalid thread parameter: must be valid JSON array");
+      }
+    }
+
+    // Queue
+    if (queue_id !== undefined) {
+      apiPayload.queue_id = queue_id;
+      if (queue_priority) {
+        apiPayload.queue_priority = queue_priority;
+      }
+    }
+
+    const response = await this.apiRequest<Post>("PATCH", `/posts/${job_id}`, apiPayload);
+
+    return JSON.stringify(
+      {
+        job_id: response.id,
+        status: response.status,
+        draft: response.draft,
+        scheduled_at: response.scheduled_at,
+        created_at: response.created_at,
+        message: "Post updated successfully",
+      },
+      null,
+      2
+    );
+  }
+
+  /**
    * Delete a post by job ID
    * @param job_id {string} Job ID to delete
    * @return {Promise<string>} Deletion confirmation as JSON
@@ -1022,6 +1144,26 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         },
       },
       {
+        name: "postUpdate",
+        description: "Update an existing post. Only drafts or scheduled posts (more than 5 min before publish) can be updated. Only send fields you want to change.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            job_id: { type: "string", description: "Post ID to update" },
+            content: { type: "string", description: "Updated text content" },
+            targets: { type: "string", description: "Comma-separated list of target profile IDs (full replace)" },
+            schedule: { type: "string", description: "Updated ISO 8601 scheduled time" },
+            draft: { type: "boolean", description: "Set or unset draft status" },
+            media: { type: "string", description: "Comma-separated list of media URLs (full replace). Send empty string to remove all media." },
+            platforms: { type: "string", description: "JSON string of platform-specific parameters (merged with existing)" },
+            thread: { type: "string", description: "JSON array of thread children (full replace). Send '[]' to remove all thread children." },
+            queue_id: { type: "string", description: "Queue ID to assign the post to" },
+            queue_priority: { type: "string", description: "Queue priority: high, medium, or low" },
+          },
+          required: ["job_id"],
+        },
+      },
+      {
         name: "postDelete",
         description: "Delete a post by job ID",
         inputSchema: {
@@ -1212,6 +1354,20 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
               break;
             case "postPublishDraft":
               result = await this.postPublishDraft(args.job_id);
+              break;
+            case "postUpdate":
+              result = await this.postUpdate(
+                args.job_id,
+                args.content,
+                args.targets,
+                args.schedule,
+                args.draft,
+                args.media,
+                args.platforms,
+                args.thread,
+                args.queue_id,
+                args.queue_priority
+              );
               break;
             case "postDelete":
               result = await this.postDelete(args.job_id);
