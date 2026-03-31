@@ -404,6 +404,133 @@ When publishing a post with `post.publish`, you can add it to a queue instead of
 }
 ```
 
+### Comment Management
+
+#### `comments.list`
+
+List comments on a published post. Returns paginated top-level comments with nested replies.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `profile_id` (string, required): Profile ID to identify which platform's comments to retrieve
+- `page` (number, optional): Page number, zero-indexed (default: 0)
+- `per_page` (number, optional): Number of top-level comments per page (default: 20)
+
+**Returns**:
+```json
+{
+  "total": 42,
+  "page": 0,
+  "per_page": 20,
+  "data": [
+    {
+      "id": "cmt_abc123",
+      "external_id": "17858893269123456",
+      "body": "Great post!",
+      "status": "synced",
+      "author_username": "someuser",
+      "like_count": 3,
+      "is_hidden": false,
+      "posted_at": "2026-03-25T10:00:00.000Z",
+      "replies": [
+        {
+          "id": "cmt_def456",
+          "body": "Thanks!",
+          "author_username": "author",
+          "parent_external_id": "17858893269123456"
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### `comments.get`
+
+Get a single comment with its replies.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID (Postproxy ID or platform external ID)
+- `profile_id` (string, required): Profile ID
+
+#### `comments.create`
+
+Create a comment or reply on a published post. The comment is published to the platform asynchronously.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `profile_id` (string, required): Profile ID
+- `text` (string, required): Comment text content
+- `parent_id` (string, optional): ID of comment to reply to (Postproxy ID or external ID). Omit to comment on the post itself.
+
+**Returns**:
+```json
+{
+  "id": "cmt_ghi789",
+  "body": "Thanks for the feedback everyone!",
+  "status": "pending",
+  "external_id": null
+}
+```
+
+The comment is created with `status: "pending"`. Once published to the platform, it becomes `"published"`. If publishing fails, it becomes `"failed"`.
+
+#### `comments.delete`
+
+Delete a comment from the platform asynchronously. Supported on Instagram, Facebook, YouTube, and LinkedIn. Not supported on Threads.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID (Postproxy ID or external ID)
+- `profile_id` (string, required): Profile ID
+
+#### `comments.hide`
+
+Hide a comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID
+- `profile_id` (string, required): Profile ID
+
+#### `comments.unhide`
+
+Unhide a previously hidden comment. Supported on Instagram, Facebook, and Threads.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID
+- `profile_id` (string, required): Profile ID
+
+#### `comments.like`
+
+Like a comment on the platform asynchronously. Currently only supported on Facebook.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID
+- `profile_id` (string, required): Profile ID
+
+#### `comments.unlike`
+
+Remove a like from a comment. Currently only supported on Facebook.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID
+- `profile_id` (string, required): Profile ID
+
+#### Platform Support
+
+| Action | Instagram | Facebook | Threads | YouTube | LinkedIn |
+|--------|-----------|----------|---------|---------|----------|
+| List | Yes | Yes | Yes | Yes | Yes |
+| Reply | Yes | Yes | Yes | Yes | Yes |
+| Delete | Yes | Yes | No | Yes | Yes |
+| Hide/Unhide | Yes | Yes | Yes | No | No |
+| Like/Unlike | No | Yes | No | No | No |
+
 ### History
 
 #### `history.list`
@@ -794,6 +921,20 @@ Pause queue q1abc
 
 ```
 What's the next available slot for queue q1abc?
+```
+
+### Comment Management
+
+```
+Show me the comments on post abc123 for my Instagram profile prof456
+```
+
+```
+Reply to comment cmt_abc123 on post abc123 with "Thanks for the feedback!" using profile prof456
+```
+
+```
+Hide comment cmt_abc123 on post abc123 for profile prof456
 ```
 
 ### View History

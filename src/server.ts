@@ -24,6 +24,16 @@ import {
   handleQueuesDelete,
   handleQueuesNextSlot,
 } from "./tools/queue.js";
+import {
+  handleCommentsList,
+  handleCommentsGet,
+  handleCommentsCreate,
+  handleCommentsDelete,
+  handleCommentsHide,
+  handleCommentsUnhide,
+  handleCommentsLike,
+  handleCommentsUnlike,
+} from "./tools/comment.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
 import { logToolCall } from "./utils/logger.js";
 
@@ -466,6 +476,190 @@ export const TOOL_DEFINITIONS = [
       required: ["queue_id"],
     },
   },
+  {
+    name: "comments.list",
+    description: "List comments on a published post. Returns paginated top-level comments with nested replies. Not all platforms support comments.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID to identify which platform's comments to retrieve",
+        },
+        page: {
+          type: "number",
+          description: "Page number, zero-indexed (default: 0)",
+        },
+        per_page: {
+          type: "number",
+          description: "Number of top-level comments per page (default: 20)",
+        },
+      },
+      required: ["post_id", "profile_id"],
+    },
+  },
+  {
+    name: "comments.get",
+    description: "Get a single comment with its replies",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        comment_id: {
+          type: "string",
+          description: "Comment ID (Postproxy ID or platform external ID)",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID",
+        },
+      },
+      required: ["post_id", "comment_id", "profile_id"],
+    },
+  },
+  {
+    name: "comments.create",
+    description: "Create a comment or reply on a published post. The comment is published to the platform asynchronously. Supported on Instagram, Facebook, Threads, YouTube, and LinkedIn.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID",
+        },
+        text: {
+          type: "string",
+          description: "Comment text content",
+        },
+        parent_id: {
+          type: "string",
+          description: "Optional ID of comment to reply to (Postproxy ID or external ID). Omit to comment on the post itself.",
+        },
+      },
+      required: ["post_id", "profile_id", "text"],
+    },
+  },
+  {
+    name: "comments.delete",
+    description: "Delete a comment from the platform asynchronously. Supported on Instagram, Facebook, YouTube, and LinkedIn. Not supported on Threads.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        comment_id: {
+          type: "string",
+          description: "Comment ID (Postproxy ID or external ID)",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID",
+        },
+      },
+      required: ["post_id", "comment_id", "profile_id"],
+    },
+  },
+  {
+    name: "comments.hide",
+    description: "Hide a comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        comment_id: {
+          type: "string",
+          description: "Comment ID (Postproxy ID or external ID)",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID",
+        },
+      },
+      required: ["post_id", "comment_id", "profile_id"],
+    },
+  },
+  {
+    name: "comments.unhide",
+    description: "Unhide a previously hidden comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        comment_id: {
+          type: "string",
+          description: "Comment ID (Postproxy ID or external ID)",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID",
+        },
+      },
+      required: ["post_id", "comment_id", "profile_id"],
+    },
+  },
+  {
+    name: "comments.like",
+    description: "Like a comment on the platform asynchronously. Currently only supported on Facebook.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        comment_id: {
+          type: "string",
+          description: "Comment ID (Postproxy ID or external ID)",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID",
+        },
+      },
+      required: ["post_id", "comment_id", "profile_id"],
+    },
+  },
+  {
+    name: "comments.unlike",
+    description: "Remove a like from a comment on the platform asynchronously. Currently only supported on Facebook.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        comment_id: {
+          type: "string",
+          description: "Comment ID (Postproxy ID or external ID)",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile ID",
+        },
+      },
+      required: ["post_id", "comment_id", "profile_id"],
+    },
+  },
 ] as const;
 
 export async function createMCPServer(client: PostProxyClient): Promise<Server> {
@@ -528,6 +722,22 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleQueuesDelete(client, args as any);
         case "queues.next_slot":
           return await handleQueuesNextSlot(client, args as any);
+        case "comments.list":
+          return await handleCommentsList(client, args as any);
+        case "comments.get":
+          return await handleCommentsGet(client, args as any);
+        case "comments.create":
+          return await handleCommentsCreate(client, args as any);
+        case "comments.delete":
+          return await handleCommentsDelete(client, args as any);
+        case "comments.hide":
+          return await handleCommentsHide(client, args as any);
+        case "comments.unhide":
+          return await handleCommentsUnhide(client, args as any);
+        case "comments.like":
+          return await handleCommentsLike(client, args as any);
+        case "comments.unlike":
+          return await handleCommentsUnlike(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
       }
