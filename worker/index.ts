@@ -1085,6 +1085,270 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
+   * List comments on a published post
+   * @param post_id {string} Post ID
+   * @param profile_id {string} Profile ID
+   * @param page {number} Optional page number (zero-indexed, default: 0)
+   * @param per_page {number} Optional items per page (default: 20)
+   * @return {Promise<string>} Paginated comments as JSON
+   */
+  async commentsList(
+    post_id: string,
+    profile_id: string,
+    page?: number,
+    per_page?: number
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const params = new URLSearchParams();
+    params.append("profile_id", profile_id);
+    if (page !== undefined) {
+      params.append("page", String(page));
+    }
+    if (per_page !== undefined) {
+      params.append("per_page", String(per_page));
+    }
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/posts/${post_id}/comments?${params.toString()}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * Get a single comment with its replies
+   * @param post_id {string} Post ID
+   * @param comment_id {string} Comment ID or external ID
+   * @param profile_id {string} Profile ID
+   * @return {Promise<string>} Comment as JSON
+   */
+  async commentsGet(
+    post_id: string,
+    comment_id: string,
+    profile_id: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!comment_id) {
+      throw new Error("comment_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/posts/${post_id}/comments/${comment_id}?profile_id=${profile_id}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * Create a comment or reply on a published post
+   * @param post_id {string} Post ID
+   * @param profile_id {string} Profile ID
+   * @param text {string} Comment text content
+   * @param parent_id {string} Optional parent comment ID to reply to
+   * @return {Promise<string>} Created comment as JSON
+   */
+  async commentsCreate(
+    post_id: string,
+    profile_id: string,
+    text: string,
+    parent_id?: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+    if (!text) {
+      throw new Error("text is required");
+    }
+
+    const body: any = { text };
+    if (parent_id) {
+      body.parent_id = parent_id;
+    }
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/posts/${post_id}/comments?profile_id=${profile_id}`,
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * Delete a comment
+   * @param post_id {string} Post ID
+   * @param comment_id {string} Comment ID or external ID
+   * @param profile_id {string} Profile ID
+   * @return {Promise<string>} Deletion result as JSON
+   */
+  async commentsDelete(
+    post_id: string,
+    comment_id: string,
+    profile_id: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!comment_id) {
+      throw new Error("comment_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const response = await this.apiRequest<any>(
+      "DELETE",
+      `/posts/${post_id}/comments/${comment_id}?profile_id=${profile_id}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * Hide a comment
+   * @param post_id {string} Post ID
+   * @param comment_id {string} Comment ID or external ID
+   * @param profile_id {string} Profile ID
+   * @return {Promise<string>} Result as JSON
+   */
+  async commentsHide(
+    post_id: string,
+    comment_id: string,
+    profile_id: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!comment_id) {
+      throw new Error("comment_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/posts/${post_id}/comments/${comment_id}/hide?profile_id=${profile_id}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * Unhide a comment
+   * @param post_id {string} Post ID
+   * @param comment_id {string} Comment ID or external ID
+   * @param profile_id {string} Profile ID
+   * @return {Promise<string>} Result as JSON
+   */
+  async commentsUnhide(
+    post_id: string,
+    comment_id: string,
+    profile_id: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!comment_id) {
+      throw new Error("comment_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/posts/${post_id}/comments/${comment_id}/unhide?profile_id=${profile_id}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * Like a comment
+   * @param post_id {string} Post ID
+   * @param comment_id {string} Comment ID or external ID
+   * @param profile_id {string} Profile ID
+   * @return {Promise<string>} Result as JSON
+   */
+  async commentsLike(
+    post_id: string,
+    comment_id: string,
+    profile_id: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!comment_id) {
+      throw new Error("comment_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/posts/${post_id}/comments/${comment_id}/like?profile_id=${profile_id}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
+   * Unlike a comment
+   * @param post_id {string} Post ID
+   * @param comment_id {string} Comment ID or external ID
+   * @param profile_id {string} Profile ID
+   * @return {Promise<string>} Result as JSON
+   */
+  async commentsUnlike(
+    post_id: string,
+    comment_id: string,
+    profile_id: string
+  ): Promise<string> {
+    this.getApiKey();
+
+    if (!post_id) {
+      throw new Error("post_id is required");
+    }
+    if (!comment_id) {
+      throw new Error("comment_id is required");
+    }
+    if (!profile_id) {
+      throw new Error("profile_id is required");
+    }
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/posts/${post_id}/comments/${comment_id}/unlike?profile_id=${profile_id}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  /**
    * MCP tool definitions
    */
   private getTools() {
@@ -1287,6 +1551,112 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           required: ["queue_id"],
         },
       },
+      {
+        name: "commentsList",
+        description: "List comments on a published post. Returns paginated top-level comments with nested replies.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            profile_id: { type: "string", description: "Profile ID to identify which platform's comments to retrieve" },
+            page: { type: "number", description: "Page number, zero-indexed (default: 0)" },
+            per_page: { type: "number", description: "Number of top-level comments per page (default: 20)" },
+          },
+          required: ["post_id", "profile_id"],
+        },
+      },
+      {
+        name: "commentsGet",
+        description: "Get a single comment with its replies",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            comment_id: { type: "string", description: "Comment ID (Postproxy ID or platform external ID)" },
+            profile_id: { type: "string", description: "Profile ID" },
+          },
+          required: ["post_id", "comment_id", "profile_id"],
+        },
+      },
+      {
+        name: "commentsCreate",
+        description: "Create a comment or reply on a published post. Published to the platform asynchronously.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            profile_id: { type: "string", description: "Profile ID" },
+            text: { type: "string", description: "Comment text content" },
+            parent_id: { type: "string", description: "Optional ID of comment to reply to (Postproxy ID or external ID). Omit to comment on the post itself." },
+          },
+          required: ["post_id", "profile_id", "text"],
+        },
+      },
+      {
+        name: "commentsDelete",
+        description: "Delete a comment from the platform asynchronously. Not supported on Threads.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            comment_id: { type: "string", description: "Comment ID (Postproxy ID or external ID)" },
+            profile_id: { type: "string", description: "Profile ID" },
+          },
+          required: ["post_id", "comment_id", "profile_id"],
+        },
+      },
+      {
+        name: "commentsHide",
+        description: "Hide a comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            comment_id: { type: "string", description: "Comment ID (Postproxy ID or external ID)" },
+            profile_id: { type: "string", description: "Profile ID" },
+          },
+          required: ["post_id", "comment_id", "profile_id"],
+        },
+      },
+      {
+        name: "commentsUnhide",
+        description: "Unhide a previously hidden comment. Supported on Instagram, Facebook, and Threads.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            comment_id: { type: "string", description: "Comment ID (Postproxy ID or external ID)" },
+            profile_id: { type: "string", description: "Profile ID" },
+          },
+          required: ["post_id", "comment_id", "profile_id"],
+        },
+      },
+      {
+        name: "commentsLike",
+        description: "Like a comment on the platform asynchronously. Currently only supported on Facebook.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            comment_id: { type: "string", description: "Comment ID (Postproxy ID or external ID)" },
+            profile_id: { type: "string", description: "Profile ID" },
+          },
+          required: ["post_id", "comment_id", "profile_id"],
+        },
+      },
+      {
+        name: "commentsUnlike",
+        description: "Remove a like from a comment. Currently only supported on Facebook.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", description: "Post ID" },
+            comment_id: { type: "string", description: "Comment ID (Postproxy ID or external ID)" },
+            profile_id: { type: "string", description: "Profile ID" },
+          },
+          required: ["post_id", "comment_id", "profile_id"],
+        },
+      },
     ];
   }
 
@@ -1413,6 +1783,30 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
               break;
             case "queuesNextSlot":
               result = await this.queuesNextSlot(args.queue_id);
+              break;
+            case "commentsList":
+              result = await this.commentsList(args.post_id, args.profile_id, args.page, args.per_page);
+              break;
+            case "commentsGet":
+              result = await this.commentsGet(args.post_id, args.comment_id, args.profile_id);
+              break;
+            case "commentsCreate":
+              result = await this.commentsCreate(args.post_id, args.profile_id, args.text, args.parent_id);
+              break;
+            case "commentsDelete":
+              result = await this.commentsDelete(args.post_id, args.comment_id, args.profile_id);
+              break;
+            case "commentsHide":
+              result = await this.commentsHide(args.post_id, args.comment_id, args.profile_id);
+              break;
+            case "commentsUnhide":
+              result = await this.commentsUnhide(args.post_id, args.comment_id, args.profile_id);
+              break;
+            case "commentsLike":
+              result = await this.commentsLike(args.post_id, args.comment_id, args.profile_id);
+              break;
+            case "commentsUnlike":
+              result = await this.commentsUnlike(args.post_id, args.comment_id, args.profile_id);
               break;
             default:
               return {

@@ -18,6 +18,10 @@ import type {
   PostQueue,
   CreateQueueParams,
   UpdateQueueParams,
+  Comment,
+  CommentsListResponse,
+  CreateCommentParams,
+  CommentActionResponse,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
@@ -691,5 +695,123 @@ export class PostProxyClient {
    */
   async deleteQueue(queueId: string): Promise<void> {
     await this.request<void>("DELETE", `/post_queues/${queueId}`);
+  }
+
+  /**
+   * List comments for a post
+   */
+  async listComments(
+    postId: string,
+    profileId: string,
+    page?: number,
+    perPage?: number
+  ): Promise<CommentsListResponse> {
+    const params = new URLSearchParams();
+    params.append("profile_id", profileId);
+    if (page !== undefined) {
+      params.append("page", String(page));
+    }
+    if (perPage !== undefined) {
+      params.append("per_page", String(perPage));
+    }
+    return this.request<CommentsListResponse>(
+      "GET",
+      `/posts/${postId}/comments?${params.toString()}`
+    );
+  }
+
+  /**
+   * Get a single comment
+   */
+  async getComment(postId: string, commentId: string, profileId: string): Promise<Comment> {
+    return this.request<Comment>(
+      "GET",
+      `/posts/${postId}/comments/${commentId}?profile_id=${profileId}`
+    );
+  }
+
+  /**
+   * Create a comment or reply on a post
+   */
+  async createComment(
+    postId: string,
+    profileId: string,
+    params: CreateCommentParams
+  ): Promise<Comment> {
+    return this.request<Comment>(
+      "POST",
+      `/posts/${postId}/comments?profile_id=${profileId}`,
+      params
+    );
+  }
+
+  /**
+   * Delete a comment
+   */
+  async deleteComment(
+    postId: string,
+    commentId: string,
+    profileId: string
+  ): Promise<CommentActionResponse> {
+    return this.request<CommentActionResponse>(
+      "DELETE",
+      `/posts/${postId}/comments/${commentId}?profile_id=${profileId}`
+    );
+  }
+
+  /**
+   * Hide a comment
+   */
+  async hideComment(
+    postId: string,
+    commentId: string,
+    profileId: string
+  ): Promise<CommentActionResponse> {
+    return this.request<CommentActionResponse>(
+      "POST",
+      `/posts/${postId}/comments/${commentId}/hide?profile_id=${profileId}`
+    );
+  }
+
+  /**
+   * Unhide a comment
+   */
+  async unhideComment(
+    postId: string,
+    commentId: string,
+    profileId: string
+  ): Promise<CommentActionResponse> {
+    return this.request<CommentActionResponse>(
+      "POST",
+      `/posts/${postId}/comments/${commentId}/unhide?profile_id=${profileId}`
+    );
+  }
+
+  /**
+   * Like a comment
+   */
+  async likeComment(
+    postId: string,
+    commentId: string,
+    profileId: string
+  ): Promise<CommentActionResponse> {
+    return this.request<CommentActionResponse>(
+      "POST",
+      `/posts/${postId}/comments/${commentId}/like?profile_id=${profileId}`
+    );
+  }
+
+  /**
+   * Unlike a comment
+   */
+  async unlikeComment(
+    postId: string,
+    commentId: string,
+    profileId: string
+  ): Promise<CommentActionResponse> {
+    return this.request<CommentActionResponse>(
+      "POST",
+      `/posts/${postId}/comments/${commentId}/unlike?profile_id=${profileId}`
+    );
   }
 }

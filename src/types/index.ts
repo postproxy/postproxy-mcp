@@ -287,3 +287,49 @@ export interface UpdateQueueParams {
   jitter?: number;
   timeslots?: Array<{ day: number; time: string } | { id: number; _destroy: true }>;
 }
+
+/**
+ * Comment object returned by the Comments API
+ */
+export interface Comment {
+  id: string;
+  external_id: string | null;
+  body: string;
+  status: "synced" | "pending" | "published" | "failed";
+  author_username: string | null;
+  author_avatar_url: string | null;
+  author_external_id: string | null;
+  parent_external_id: string | null;
+  like_count: number;
+  is_hidden: boolean;
+  permalink: string | null;
+  platform_data: any | null;
+  posted_at: string | null;
+  created_at: string;
+  replies?: Comment[];
+}
+
+/**
+ * Paginated response for listing comments
+ */
+export interface CommentsListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  data: Comment[];
+}
+
+/**
+ * Parameters for creating a comment
+ */
+export interface CreateCommentParams {
+  text: string;
+  parent_id?: string;
+}
+
+/**
+ * Accepted response for async comment actions (delete, hide, unhide, like, unlike)
+ */
+export interface CommentActionResponse {
+  accepted: boolean;
+}
