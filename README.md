@@ -163,7 +163,7 @@ Publish a post to specified social media profiles.
 **Returns**:
 ```json
 {
-  "job_id": "job-123",
+  "post_id": "job-123",
   "accepted_at": "2024-01-01T12:00:00Z",
   "status": "pending",
   "draft": true
@@ -177,12 +177,12 @@ Publish a post to specified social media profiles.
 Get status of a published post by job ID.
 
 **Parameters**:
-- `job_id` (string, required): Job ID from post.publish response
+- `post_id` (string, required): Post ID from post.publish response
 
 **Returns**:
 ```json
 {
-  "job_id": "job-123",
+  "post_id": "job-123",
   "overall_status": "complete",
   "draft": false,
   "status": "processed",
@@ -209,12 +209,12 @@ Get status of a published post by job ID.
 Publish a draft post. Only posts with `draft: true` status can be published using this endpoint.
 
 **Parameters**:
-- `job_id` (string, required): Job ID of the draft post to publish
+- `post_id` (string, required): Post ID of the draft post to publish
 
 **Returns**:
 ```json
 {
-  "job_id": "job-123",
+  "post_id": "job-123",
   "status": "processed",
   "draft": false,
   "scheduled_at": null,
@@ -228,12 +228,12 @@ Publish a draft post. Only posts with `draft: true` status can be published usin
 Delete a post by job ID.
 
 **Parameters**:
-- `job_id` (string, required): Job ID to delete
+- `post_id` (string, required): Post ID to delete
 
 **Returns**:
 ```json
 {
-  "job_id": "job-123",
+  "post_id": "job-123",
   "deleted": true
 }
 ```
@@ -545,7 +545,7 @@ List recent post jobs.
 {
   "jobs": [
     {
-      "job_id": "job-123",
+      "post_id": "job-123",
       "content_preview": "Post content preview...",
       "created_at": "2024-01-01T12:00:00Z",
       "overall_status": "complete",
