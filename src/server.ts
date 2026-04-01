@@ -170,16 +170,16 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "post.status",
-    description: "Get status of a published post by job ID",
+    description: "Get status of a published post by post ID",
     inputSchema: {
       type: "object",
       properties: {
-        job_id: {
+        post_id: {
           type: "string",
-          description: "Job ID from post.publish response",
+          description: "Post ID from post.publish response",
         },
       },
-      required: ["job_id"],
+      required: ["post_id"],
     },
   },
   {
@@ -188,12 +188,12 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        job_id: {
+        post_id: {
           type: "string",
-          description: "Job ID of the draft post to publish",
+          description: "Post ID of the draft post to publish",
         },
       },
-      required: ["job_id"],
+      required: ["post_id"],
     },
   },
   {
@@ -202,7 +202,7 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {
-        job_id: {
+        post_id: {
           type: "string",
           description: "Post ID to update",
         },
@@ -255,21 +255,21 @@ export const TOOL_DEFINITIONS = [
           description: "Queue priority",
         },
       },
-      required: ["job_id"],
+      required: ["post_id"],
     },
   },
   {
     name: "post.delete",
-    description: "Delete a post by job ID",
+    description: "Delete a post by post ID",
     inputSchema: {
       type: "object",
       properties: {
-        job_id: {
+        post_id: {
           type: "string",
-          description: "Job ID to delete",
+          description: "Post ID to delete",
         },
       },
-      required: ["job_id"],
+      required: ["post_id"],
     },
   },
   {

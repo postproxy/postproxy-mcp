@@ -98,7 +98,7 @@ export async function handlePostPublish(
 
     // Build response object
     const responseData: any = {
-      job_id: response.id,
+      post_id: response.id,
       status: response.status,
       draft: response.draft,
       scheduled_at: response.scheduled_at,
@@ -129,14 +129,14 @@ export async function handlePostPublish(
 
 export async function handlePostStatus(
   client: PostProxyClient,
-  args: { job_id: string }
+  args: { post_id: string }
 ) {
-  if (!args.job_id) {
-    throw createError(ErrorCodes.VALIDATION_ERROR, "job_id is required");
+  if (!args.post_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "post_id is required");
   }
 
   try {
-    const postDetails = await client.getPost(args.job_id);
+    const postDetails = await client.getPost(args.post_id);
 
     // Parse platforms into per-platform format
     const platforms: Array<{
@@ -201,7 +201,7 @@ export async function handlePostStatus(
     }
 
     const result: any = {
-      job_id: args.job_id,
+      post_id: args.post_id,
       overall_status: overallStatus,
       draft: postDetails.draft || false,
       status: postDetails.status,
@@ -235,25 +235,25 @@ export async function handlePostStatus(
 
 export async function handlePostPublishDraft(
   client: PostProxyClient,
-  args: { job_id: string }
+  args: { post_id: string }
 ) {
-  if (!args.job_id) {
-    throw createError(ErrorCodes.VALIDATION_ERROR, "job_id is required");
+  if (!args.post_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "post_id is required");
   }
 
   try {
     // First check if the post exists and is a draft
-    const postDetails = await client.getPost(args.job_id);
+    const postDetails = await client.getPost(args.post_id);
     
     if (!postDetails.draft && postDetails.status !== "draft") {
       throw createError(
         ErrorCodes.VALIDATION_ERROR,
-        `Post ${args.job_id} is not a draft and cannot be published using this endpoint`
+        `Post ${args.post_id} is not a draft and cannot be published using this endpoint`
       );
     }
 
     // Publish the draft post
-    const publishedPost = await client.publishPost(args.job_id);
+    const publishedPost = await client.publishPost(args.post_id);
 
     return {
       content: [
@@ -261,7 +261,7 @@ export async function handlePostPublishDraft(
           type: "text",
           text: JSON.stringify(
             {
-              job_id: publishedPost.id,
+              post_id: publishedPost.id,
               status: publishedPost.status,
               draft: publishedPost.draft,
               scheduled_at: publishedPost.scheduled_at,
@@ -292,7 +292,7 @@ export async function handlePostPublishDraft(
 export async function handlePostUpdate(
   client: PostProxyClient,
   args: {
-    job_id: string;
+    post_id: string;
     content?: string;
     profiles?: string[];
     schedule?: string;
@@ -304,12 +304,12 @@ export async function handlePostUpdate(
     queue_priority?: "high" | "medium" | "low";
   }
 ) {
-  if (!args.job_id) {
-    throw createError(ErrorCodes.VALIDATION_ERROR, "job_id is required");
+  if (!args.post_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "post_id is required");
   }
 
   try {
-    const response = await client.updatePost(args.job_id, {
+    const response = await client.updatePost(args.post_id, {
       content: args.content,
       profiles: args.profiles,
       schedule: args.schedule,
@@ -327,7 +327,7 @@ export async function handlePostUpdate(
           type: "text",
           text: JSON.stringify(
             {
-              job_id: response.id,
+              post_id: response.id,
               status: response.status,
               draft: response.draft,
               scheduled_at: response.scheduled_at,
@@ -356,21 +356,21 @@ export async function handlePostUpdate(
 
 export async function handlePostDelete(
   client: PostProxyClient,
-  args: { job_id: string }
+  args: { post_id: string }
 ) {
-  if (!args.job_id) {
-    throw createError(ErrorCodes.VALIDATION_ERROR, "job_id is required");
+  if (!args.post_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "post_id is required");
   }
 
   try {
-    await client.deletePost(args.job_id);
+    await client.deletePost(args.post_id);
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify(
             {
-              job_id: args.job_id,
+              post_id: args.post_id,
               deleted: true,
             },
             null,

@@ -601,7 +601,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const draftIgnored = wasDraftRequested && (!isDraftInResponse || wasProcessedImmediately);
 
     const responseData: any = {
-      job_id: response.id,
+      post_id: response.id,
       status: response.status,
       draft: response.draft,
       scheduled_at: response.scheduled_at,
@@ -616,16 +616,16 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
-   * Get status of a published post by job ID
-   * @param job_id {string} Job ID from post.publish response
+   * Get status of a published post by post ID
+   * @param post_id {string} Post ID from post.publish response
    * @return {Promise<string>} Post status as JSON
    */
-  async postStatus(job_id: string): Promise<string> {
-    if (!job_id) {
-      throw new Error("job_id is required");
+  async postStatus(post_id: string): Promise<string> {
+    if (!post_id) {
+      throw new Error("post_id is required");
     }
 
-    const postDetails = await this.apiRequest<Post>("GET", `/posts/${job_id}`);
+    const postDetails = await this.apiRequest<Post>("GET", `/posts/${post_id}`);
 
     const platforms = (postDetails.platforms || []).map((platform) => ({
       platform: platform.platform,
@@ -640,7 +640,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const overallStatus = this.determineOverallStatus(postDetails);
 
     const result: any = {
-      job_id: job_id,
+      post_id: post_id,
       overall_status: overallStatus,
       draft: postDetails.draft || false,
       status: postDetails.status,
@@ -660,27 +660,27 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
   /**
    * Publish a draft post
-   * @param job_id {string} Job ID of the draft post to publish
+   * @param post_id {string} Post ID of the draft post to publish
    * @return {Promise<string>} Published post result as JSON
    */
-  async postPublishDraft(job_id: string): Promise<string> {
-    if (!job_id) {
-      throw new Error("job_id is required");
+  async postPublishDraft(post_id: string): Promise<string> {
+    if (!post_id) {
+      throw new Error("post_id is required");
     }
 
     // First check if the post exists and is a draft
-    const postDetails = await this.apiRequest<Post>("GET", `/posts/${job_id}`);
+    const postDetails = await this.apiRequest<Post>("GET", `/posts/${post_id}`);
 
     if (!postDetails.draft && postDetails.status !== "draft") {
-      throw new Error(`Post ${job_id} is not a draft and cannot be published using this endpoint`);
+      throw new Error(`Post ${post_id} is not a draft and cannot be published using this endpoint`);
     }
 
     // Publish the draft post
-    const publishedPost = await this.apiRequest<Post>("POST", `/posts/${job_id}/publish`);
+    const publishedPost = await this.apiRequest<Post>("POST", `/posts/${post_id}/publish`);
 
     return JSON.stringify(
       {
-        job_id: publishedPost.id,
+        post_id: publishedPost.id,
         status: publishedPost.status,
         draft: publishedPost.draft,
         scheduled_at: publishedPost.scheduled_at,
@@ -694,7 +694,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
   /**
    * Update an existing post (drafts or scheduled posts only)
-   * @param job_id {string} Post ID to update
+   * @param post_id {string} Post ID to update
    * @param content {string} Optional updated text content
    * @param targets {string} Optional comma-separated list of target profile IDs (full replace)
    * @param schedule {string} Optional updated ISO 8601 scheduled time
@@ -707,7 +707,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
    * @return {Promise<string>} Updated post as JSON
    */
   async postUpdate(
-    job_id: string,
+    post_id: string,
     content?: string,
     targets?: string,
     schedule?: string,
@@ -720,8 +720,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   ): Promise<string> {
     this.getApiKey();
 
-    if (!job_id) {
-      throw new Error("job_id is required");
+    if (!post_id) {
+      throw new Error("post_id is required");
     }
 
     const apiPayload: any = {};
@@ -798,11 +798,11 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       }
     }
 
-    const response = await this.apiRequest<Post>("PATCH", `/posts/${job_id}`, apiPayload);
+    const response = await this.apiRequest<Post>("PATCH", `/posts/${post_id}`, apiPayload);
 
     return JSON.stringify(
       {
-        job_id: response.id,
+        post_id: response.id,
         status: response.status,
         draft: response.draft,
         scheduled_at: response.scheduled_at,
@@ -815,20 +815,20 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   /**
-   * Delete a post by job ID
-   * @param job_id {string} Job ID to delete
+   * Delete a post by post ID
+   * @param post_id {string} Post ID to delete
    * @return {Promise<string>} Deletion confirmation as JSON
    */
-  async postDelete(job_id: string): Promise<string> {
-    if (!job_id) {
-      throw new Error("job_id is required");
+  async postDelete(post_id: string): Promise<string> {
+    if (!post_id) {
+      throw new Error("post_id is required");
     }
 
-    await this.apiRequest<void>("DELETE", `/posts/${job_id}`);
+    await this.apiRequest<void>("DELETE", `/posts/${post_id}`);
 
     return JSON.stringify(
       {
-        job_id: job_id,
+        post_id: post_id,
         deleted: true,
       },
       null,
@@ -852,7 +852,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       const content = post.body || post.content || "";
 
       return {
-        job_id: post.id,
+        post_id: post.id,
         content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
         created_at: post.created_at,
         overall_status: overallStatus,
@@ -1387,13 +1387,13 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       },
       {
         name: "postStatus",
-        description: "Get status of a published post by job ID",
+        description: "Get status of a published post by post ID",
         inputSchema: {
           type: "object",
           properties: {
-            job_id: { type: "string", description: "Job ID from post.publish response" },
+            post_id: { type: "string", description: "Post ID from post.publish response" },
           },
-          required: ["job_id"],
+          required: ["post_id"],
         },
       },
       {
@@ -1402,9 +1402,9 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         inputSchema: {
           type: "object",
           properties: {
-            job_id: { type: "string", description: "Job ID of the draft post to publish" },
+            post_id: { type: "string", description: "Post ID of the draft post to publish" },
           },
-          required: ["job_id"],
+          required: ["post_id"],
         },
       },
       {
@@ -1413,7 +1413,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         inputSchema: {
           type: "object",
           properties: {
-            job_id: { type: "string", description: "Post ID to update" },
+            post_id: { type: "string", description: "Post ID to update" },
             content: { type: "string", description: "Updated text content" },
             targets: { type: "string", description: "Comma-separated list of target profile IDs (full replace)" },
             schedule: { type: "string", description: "Updated ISO 8601 scheduled time" },
@@ -1424,18 +1424,18 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
             queue_id: { type: "string", description: "Queue ID to assign the post to" },
             queue_priority: { type: "string", description: "Queue priority: high, medium, or low" },
           },
-          required: ["job_id"],
+          required: ["post_id"],
         },
       },
       {
         name: "postDelete",
-        description: "Delete a post by job ID",
+        description: "Delete a post by post ID",
         inputSchema: {
           type: "object",
           properties: {
-            job_id: { type: "string", description: "Job ID to delete" },
+            post_id: { type: "string", description: "Post ID to delete" },
           },
-          required: ["job_id"],
+          required: ["post_id"],
         },
       },
       {
@@ -1720,14 +1720,14 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
               );
               break;
             case "postStatus":
-              result = await this.postStatus(args.job_id);
+              result = await this.postStatus(args.post_id);
               break;
             case "postPublishDraft":
-              result = await this.postPublishDraft(args.job_id);
+              result = await this.postPublishDraft(args.post_id);
               break;
             case "postUpdate":
               result = await this.postUpdate(
-                args.job_id,
+                args.post_id,
                 args.content,
                 args.targets,
                 args.schedule,
@@ -1740,7 +1740,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
               );
               break;
             case "postDelete":
-              result = await this.postDelete(args.job_id);
+              result = await this.postDelete(args.post_id);
               break;
             case "historyList":
               result = await this.historyList(args?.limit);

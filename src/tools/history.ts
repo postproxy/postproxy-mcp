@@ -58,7 +58,7 @@ export async function handleHistoryList(
       }
 
       return {
-        job_id: post.id,
+        post_id: post.id,
         content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
         created_at: post.created_at,
         overall_status: overallStatus,
