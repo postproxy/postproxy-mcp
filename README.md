@@ -57,7 +57,7 @@ This will guide you through the setup process step by step and register the serv
 
 ### Authentication Tools
 
-#### `auth.status`
+#### `auth_status`
 
 Check authentication status, API configuration, and workspace information.
 
@@ -74,7 +74,7 @@ Check authentication status, API configuration, and workspace information.
 
 ### Profile Management
 
-#### `profiles.list`
+#### `profiles_list`
 
 List all available social media profiles for posting.
 
@@ -94,7 +94,7 @@ List all available social media profiles for posting.
 }
 ```
 
-#### `profiles.placements`
+#### `profiles_placements`
 
 List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. Available for `facebook`, `linkedin`, and `pinterest` profiles.
 
@@ -125,7 +125,7 @@ List available placements for a profile. For Facebook profiles, placements are b
 
 ### Post Management
 
-#### `post.publish`
+#### `post_publish`
 
 Publish a post to specified social media profiles.
 
@@ -172,7 +172,7 @@ Publish a post to specified social media profiles.
 
 **Note on draft posts**: If you request a draft post (`draft: true`) but the API returns `draft: false`, a `warning` field will be included in the response indicating that the API may have ignored the draft parameter. This can happen if the API does not support drafts with certain parameters (e.g., media attachments) or under specific conditions. Check the `warning` field in the response for details.
 
-#### `post.status`
+#### `post_status`
 
 Get status of a published post by job ID.
 
@@ -204,7 +204,7 @@ Get status of a published post by job ID.
 - Platform `status`: `"pending"`, `"processing"`, `"published"`, `"failed"`, `"deleted"`
 - Platform `error`: Error message if publishing failed (null if successful)
 
-#### `post.publish_draft`
+#### `post_publish_draft`
 
 Publish a draft post. Only posts with `draft: true` status can be published using this endpoint.
 
@@ -223,7 +223,7 @@ Publish a draft post. Only posts with `draft: true` status can be published usin
 }
 ```
 
-#### `post.delete`
+#### `post_delete`
 
 Delete a post by job ID.
 
@@ -238,7 +238,7 @@ Delete a post by job ID.
 }
 ```
 
-#### `post.stats`
+#### `post_stats`
 
 Get stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time. Supports filtering by profiles/networks and timespan.
 
@@ -291,7 +291,7 @@ Get stats snapshots for one or more posts. Returns all matching snapshots so you
 
 ### Queue Management
 
-#### `queues.list`
+#### `queues_list`
 
 List all posting queues. Queues automatically schedule posts into recurring weekly timeslots with priority-based ordering.
 
@@ -317,19 +317,19 @@ List all posting queues. Queues automatically schedule posts into recurring week
 }
 ```
 
-#### `queues.get`
+#### `queues_get`
 
 Get details of a single posting queue including its timeslots and post count.
 
 **Parameters**:
 - `queue_id` (string, required): Queue ID
 
-#### `queues.create`
+#### `queues_create`
 
 Create a new posting queue with weekly timeslots.
 
 **Parameters**:
-- `profile_group_id` (string, required): Profile group ID to connect the queue to (use `profiles.list` to find this)
+- `profile_group_id` (string, required): Profile group ID to connect the queue to (use `profiles_list` to find this)
 - `name` (string, required): Queue name
 - `description` (string, optional): Optional description
 - `timezone` (string, optional): IANA timezone name (e.g. `America/New_York`). Default: `UTC`
@@ -353,7 +353,7 @@ Create a new posting queue with weekly timeslots.
 }
 ```
 
-#### `queues.update`
+#### `queues_update`
 
 Update a queue's settings, timeslots, or pause/unpause it. Changes to timezone or timeslots trigger rearrangement of all queued posts.
 
@@ -366,14 +366,14 @@ Update a queue's settings, timeslots, or pause/unpause it. Changes to timezone o
 - `jitter` (number, optional): Random offset in minutes (0–60)
 - `timeslots` (array, optional): Timeslots to add or remove. To add: `{ "day": 1, "time": "09:00" }`. To remove: `{ "id": 42, "_destroy": true }`.
 
-#### `queues.delete`
+#### `queues_delete`
 
 Delete a posting queue. Posts in the queue will have their queue reference removed but will not be deleted.
 
 **Parameters**:
 - `queue_id` (string, required): Queue ID to delete
 
-#### `queues.next_slot`
+#### `queues_next_slot`
 
 Get the next available timeslot for a queue.
 
@@ -389,7 +389,7 @@ Get the next available timeslot for a queue.
 
 #### Adding Posts to a Queue
 
-When publishing a post with `post.publish`, you can add it to a queue instead of scheduling it manually:
+When publishing a post with `post_publish`, you can add it to a queue instead of scheduling it manually:
 
 - `queue_id` (string, optional): Queue ID to add the post to. The queue will automatically assign a timeslot. Do not use together with `schedule`.
 - `queue_priority` (string, optional): Priority level: `high`, `medium` (default), or `low`. Higher priority posts get earlier timeslots.
@@ -406,7 +406,7 @@ When publishing a post with `post.publish`, you can add it to a queue instead of
 
 ### Comment Management
 
-#### `comments.list`
+#### `comments_list`
 
 List comments on a published post. Returns paginated top-level comments with nested replies.
 
@@ -445,7 +445,7 @@ List comments on a published post. Returns paginated top-level comments with nes
 }
 ```
 
-#### `comments.get`
+#### `comments_get`
 
 Get a single comment with its replies.
 
@@ -454,7 +454,7 @@ Get a single comment with its replies.
 - `comment_id` (string, required): Comment ID (Postproxy ID or platform external ID)
 - `profile_id` (string, required): Profile ID
 
-#### `comments.create`
+#### `comments_create`
 
 Create a comment or reply on a published post. The comment is published to the platform asynchronously.
 
@@ -476,7 +476,7 @@ Create a comment or reply on a published post. The comment is published to the p
 
 The comment is created with `status: "pending"`. Once published to the platform, it becomes `"published"`. If publishing fails, it becomes `"failed"`.
 
-#### `comments.delete`
+#### `comments_delete`
 
 Delete a comment from the platform asynchronously. Supported on Instagram, Facebook, YouTube, and LinkedIn. Not supported on Threads.
 
@@ -485,7 +485,7 @@ Delete a comment from the platform asynchronously. Supported on Instagram, Faceb
 - `comment_id` (string, required): Comment ID (Postproxy ID or external ID)
 - `profile_id` (string, required): Profile ID
 
-#### `comments.hide`
+#### `comments_hide`
 
 Hide a comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.
 
@@ -494,7 +494,7 @@ Hide a comment on the platform asynchronously. Supported on Instagram, Facebook,
 - `comment_id` (string, required): Comment ID
 - `profile_id` (string, required): Profile ID
 
-#### `comments.unhide`
+#### `comments_unhide`
 
 Unhide a previously hidden comment. Supported on Instagram, Facebook, and Threads.
 
@@ -503,7 +503,7 @@ Unhide a previously hidden comment. Supported on Instagram, Facebook, and Thread
 - `comment_id` (string, required): Comment ID
 - `profile_id` (string, required): Profile ID
 
-#### `comments.like`
+#### `comments_like`
 
 Like a comment on the platform asynchronously. Currently only supported on Facebook.
 
@@ -512,7 +512,7 @@ Like a comment on the platform asynchronously. Currently only supported on Faceb
 - `comment_id` (string, required): Comment ID
 - `profile_id` (string, required): Profile ID
 
-#### `comments.unlike`
+#### `comments_unlike`
 
 Remove a like from a comment. Currently only supported on Facebook.
 
@@ -533,7 +533,7 @@ Remove a like from a comment. Currently only supported on Facebook.
 
 ### History
 
-#### `history.list`
+#### `history_list`
 
 List recent post jobs.
 
@@ -959,7 +959,7 @@ Show me the last 5 posts I published
 
 ### Validation Errors
 
-- **TARGET_NOT_FOUND**: One or more profile IDs don't exist. Use `profiles.list` to see available profiles.
+- **TARGET_NOT_FOUND**: One or more profile IDs don't exist. Use `profiles_list` to see available profiles.
 - **VALIDATION_ERROR**: Post content or parameters are invalid. The API now returns detailed error messages:
   - **400 errors**: `{"status":400,"error":"Bad Request","message":"..."}`
   - **422 errors**: `{"errors": ["Error 1", "Error 2"]}` - Array of validation error messages
@@ -972,7 +972,7 @@ Show me the last 5 posts I published
 
 ### Platform Errors
 
-When checking post status with `post.status`, platform-specific errors are now available in the `error` field of each platform object:
+When checking post status with `post_status`, platform-specific errors are now available in the `error` field of each platform object:
 - `error: null` - Post published successfully
 - `error: "Error message"` - Detailed error message from the platform API
 - Common errors include authentication issues, rate limits, content violations, etc.

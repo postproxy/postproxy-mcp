@@ -43,7 +43,7 @@ import { logToolCall } from "./utils/logger.js";
  */
 export const TOOL_DEFINITIONS = [
   {
-    name: "auth.status",
+    name: "auth_status",
     description: "Check authentication status, API configuration, and workspace information",
     annotations: {
       title: "Check Auth Status",
@@ -57,7 +57,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "profiles.list",
+    name: "profiles_list",
     description: "List all available social media profiles for posting",
     annotations: {
       title: "List Profiles",
@@ -71,7 +71,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "post.publish",
+    name: "post_publish",
     description: "Publish a post to specified social media profiles. Supports text content, media attachments, scheduling, drafts, threads (X and Threads only), and platform-specific customization via the 'platforms' parameter.",
     annotations: {
       title: "Publish Post",
@@ -188,7 +188,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "post.status",
+    name: "post_status",
     description: "Get status of a published post by post ID",
     annotations: {
       title: "Get Post Status",
@@ -208,7 +208,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "post.publish_draft",
+    name: "post_publish_draft",
     description: "Publish a draft post. Only posts with draft status can be published using this endpoint",
     annotations: {
       title: "Publish Draft",
@@ -229,7 +229,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "post.update",
+    name: "post_update",
     description: "Update an existing post. Only drafts or scheduled posts (more than 5 min before publish) can be updated. Only send fields you want to change — omitted fields are left unchanged.",
     annotations: {
       title: "Update Post",
@@ -298,7 +298,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "post.delete",
+    name: "post_delete",
     description: "Delete a post by post ID",
     annotations: {
       title: "Delete Post",
@@ -319,7 +319,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "history.list",
+    name: "history_list",
     description: "List recent post jobs",
     annotations: {
       title: "List Post History",
@@ -338,7 +338,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "post.stats",
+    name: "post_stats",
     description: "Get stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time. Supports filtering by profiles/networks and timespan.",
     annotations: {
       title: "Get Post Stats",
@@ -371,7 +371,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "profiles.placements",
+    name: "profiles_placements",
     description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. Available for facebook, linkedin, and pinterest profiles.",
     annotations: {
       title: "List Profile Placements",
@@ -391,7 +391,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "queues.list",
+    name: "queues_list",
     description: "List all posting queues. Queues automatically schedule posts into recurring weekly timeslots with priority-based ordering.",
     annotations: {
       title: "List Queues",
@@ -410,7 +410,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "queues.get",
+    name: "queues_get",
     description: "Get details of a single posting queue including its timeslots and post count",
     annotations: {
       title: "Get Queue Details",
@@ -430,7 +430,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "queues.create",
+    name: "queues_create",
     description: "Create a new posting queue with weekly timeslots. Use profiles.list to find the profile_group_id.",
     annotations: {
       title: "Create Queue",
@@ -485,7 +485,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "queues.update",
+    name: "queues_update",
     description: "Update a queue's settings, timeslots, or pause/unpause it. Changes to timezone or timeslots trigger rearrangement of all queued posts.",
     annotations: {
       title: "Update Queue",
@@ -539,7 +539,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "queues.delete",
+    name: "queues_delete",
     description: "Delete a posting queue. Posts in the queue will have their queue reference removed but will not be deleted.",
     annotations: {
       title: "Delete Queue",
@@ -560,7 +560,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "queues.next_slot",
+    name: "queues_next_slot",
     description: "Get the next available timeslot for a queue",
     annotations: {
       title: "Get Next Queue Slot",
@@ -580,7 +580,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.list",
+    name: "comments_list",
     description: "List comments on a published post. Returns paginated top-level comments with nested replies. Not all platforms support comments.",
     annotations: {
       title: "List Comments",
@@ -612,7 +612,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.get",
+    name: "comments_get",
     description: "Get a single comment with its replies",
     annotations: {
       title: "Get Comment",
@@ -640,7 +640,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.create",
+    name: "comments_create",
     description: "Create a comment or reply on a published post. The comment is published to the platform asynchronously. Supported on Instagram, Facebook, Threads, YouTube, and LinkedIn.",
     annotations: {
       title: "Create Comment",
@@ -673,7 +673,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.delete",
+    name: "comments_delete",
     description: "Delete a comment from the platform asynchronously. Supported on Instagram, Facebook, YouTube, and LinkedIn. Not supported on Threads.",
     annotations: {
       title: "Delete Comment",
@@ -702,7 +702,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.hide",
+    name: "comments_hide",
     description: "Hide a comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.",
     annotations: {
       title: "Hide Comment",
@@ -731,7 +731,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.unhide",
+    name: "comments_unhide",
     description: "Unhide a previously hidden comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.",
     annotations: {
       title: "Unhide Comment",
@@ -760,7 +760,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.like",
+    name: "comments_like",
     description: "Like a comment on the platform asynchronously. Currently only supported on Facebook.",
     annotations: {
       title: "Like Comment",
@@ -789,7 +789,7 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "comments.unlike",
+    name: "comments_unlike",
     description: "Remove a like from a comment on the platform asynchronously. Currently only supported on Facebook.",
     annotations: {
       title: "Unlike Comment",
