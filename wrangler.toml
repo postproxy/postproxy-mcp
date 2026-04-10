@@ -9,3 +9,4 @@ routes = [
 
 [vars]
 POSTPROXY_BASE_URL = "https://api.postproxy.dev/api"
+POSTPROXY_APP_URL = "https://app.postproxy.dev"

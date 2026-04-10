@@ -12,6 +12,7 @@ import { TOOL_DEFINITIONS } from "../src/server.js";
 
 interface Env {
   POSTPROXY_BASE_URL: string;
+  POSTPROXY_APP_URL: string;
 }
 
 interface ProfileGroup {
@@ -762,6 +763,10 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-PostProxy-API-Key",
   };
 
+  private get appUrl(): string {
+    return this.env.POSTPROXY_APP_URL.replace(/\/$/, "");
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
@@ -770,7 +775,61 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       return new Response(null, { status: 204, headers: this.corsHeaders });
     }
 
-    // Only handle /mcp path
+    // ─── OAuth: metadata discovery ─────────────────────────────────
+    if (url.pathname === "/.well-known/oauth-authorization-server") {
+      return Response.json(
+        {
+          issuer: this.appUrl,
+          authorization_endpoint: `${this.appUrl}/oauth/authorize`,
+          token_endpoint: `${this.appUrl}/oauth/token`,
+          revocation_endpoint: `${this.appUrl}/oauth/revoke`,
+          response_types_supported: ["code"],
+          grant_types_supported: ["authorization_code", "refresh_token"],
+          code_challenge_methods_supported: ["S256"],
+          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+        },
+        { headers: this.corsHeaders }
+      );
+    }
+
+    // ─── OAuth: redirect authorize to app ──────────────────────────
+    if (url.pathname === "/authorize" || url.pathname === "/oauth/authorize") {
+      const target = new URL(`${this.appUrl}/oauth/authorize`);
+      target.search = url.search;
+      return Response.redirect(target.toString(), 302);
+    }
+
+    // ─── OAuth: proxy token requests to app ────────────────────────
+    if (url.pathname === "/token" || url.pathname === "/oauth/token") {
+      const appResponse = await fetch(`${this.appUrl}/oauth/token`, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body,
+      });
+      const responseHeaders = new Headers(appResponse.headers);
+      Object.entries(this.corsHeaders).forEach(([k, v]) => responseHeaders.set(k, v));
+      return new Response(appResponse.body, {
+        status: appResponse.status,
+        headers: responseHeaders,
+      });
+    }
+
+    // ─── OAuth: proxy revoke requests to app ───────────────────────
+    if (url.pathname === "/revoke" || url.pathname === "/oauth/revoke") {
+      const appResponse = await fetch(`${this.appUrl}/oauth/revoke`, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body,
+      });
+      const responseHeaders = new Headers(appResponse.headers);
+      Object.entries(this.corsHeaders).forEach(([k, v]) => responseHeaders.set(k, v));
+      return new Response(appResponse.body, {
+        status: appResponse.status,
+        headers: responseHeaders,
+      });
+    }
+
+    // ─── MCP endpoints ─────────────────────────────────────────────
     if (url.pathname !== "/mcp" && url.pathname !== "/") {
       return new Response("Not Found", { status: 404, headers: this.corsHeaders });
     }
