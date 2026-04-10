@@ -45,6 +45,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "auth.status",
     description: "Check authentication status, API configuration, and workspace information",
+    annotations: {
+      title: "Check Auth Status",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {},
@@ -53,6 +59,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "profiles.list",
     description: "List all available social media profiles for posting",
+    annotations: {
+      title: "List Profiles",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {},
@@ -61,6 +73,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "post.publish",
     description: "Publish a post to specified social media profiles. Supports text content, media attachments, scheduling, drafts, threads (X and Threads only), and platform-specific customization via the 'platforms' parameter.",
+    annotations: {
+      title: "Publish Post",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -171,6 +190,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "post.status",
     description: "Get status of a published post by post ID",
+    annotations: {
+      title: "Get Post Status",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -185,6 +210,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "post.publish_draft",
     description: "Publish a draft post. Only posts with draft status can be published using this endpoint",
+    annotations: {
+      title: "Publish Draft",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -199,6 +231,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "post.update",
     description: "Update an existing post. Only drafts or scheduled posts (more than 5 min before publish) can be updated. Only send fields you want to change — omitted fields are left unchanged.",
+    annotations: {
+      title: "Update Post",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -261,6 +300,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "post.delete",
     description: "Delete a post by post ID",
+    annotations: {
+      title: "Delete Post",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -275,6 +321,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "history.list",
     description: "List recent post jobs",
+    annotations: {
+      title: "List Post History",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -288,6 +340,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "post.stats",
     description: "Get stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time. Supports filtering by profiles/networks and timespan.",
+    annotations: {
+      title: "Get Post Stats",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -315,6 +373,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "profiles.placements",
     description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. Available for facebook, linkedin, and pinterest profiles.",
+    annotations: {
+      title: "List Profile Placements",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -329,6 +393,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "queues.list",
     description: "List all posting queues. Queues automatically schedule posts into recurring weekly timeslots with priority-based ordering.",
+    annotations: {
+      title: "List Queues",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -342,6 +412,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "queues.get",
     description: "Get details of a single posting queue including its timeslots and post count",
+    annotations: {
+      title: "Get Queue Details",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -356,6 +432,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "queues.create",
     description: "Create a new posting queue with weekly timeslots. Use profiles.list to find the profile_group_id.",
+    annotations: {
+      title: "Create Queue",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -404,6 +487,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "queues.update",
     description: "Update a queue's settings, timeslots, or pause/unpause it. Changes to timezone or timeslots trigger rearrangement of all queued posts.",
+    annotations: {
+      title: "Update Queue",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -451,6 +541,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "queues.delete",
     description: "Delete a posting queue. Posts in the queue will have their queue reference removed but will not be deleted.",
+    annotations: {
+      title: "Delete Queue",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -465,6 +562,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "queues.next_slot",
     description: "Get the next available timeslot for a queue",
+    annotations: {
+      title: "Get Next Queue Slot",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -479,6 +582,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.list",
     description: "List comments on a published post. Returns paginated top-level comments with nested replies. Not all platforms support comments.",
+    annotations: {
+      title: "List Comments",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -505,6 +614,12 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.get",
     description: "Get a single comment with its replies",
+    annotations: {
+      title: "Get Comment",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -527,6 +642,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.create",
     description: "Create a comment or reply on a published post. The comment is published to the platform asynchronously. Supported on Instagram, Facebook, Threads, YouTube, and LinkedIn.",
+    annotations: {
+      title: "Create Comment",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -553,6 +675,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.delete",
     description: "Delete a comment from the platform asynchronously. Supported on Instagram, Facebook, YouTube, and LinkedIn. Not supported on Threads.",
+    annotations: {
+      title: "Delete Comment",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -575,6 +704,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.hide",
     description: "Hide a comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.",
+    annotations: {
+      title: "Hide Comment",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -597,6 +733,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.unhide",
     description: "Unhide a previously hidden comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.",
+    annotations: {
+      title: "Unhide Comment",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -619,6 +762,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.like",
     description: "Like a comment on the platform asynchronously. Currently only supported on Facebook.",
+    annotations: {
+      title: "Like Comment",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
@@ -641,6 +791,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "comments.unlike",
     description: "Remove a like from a comment on the platform asynchronously. Currently only supported on Facebook.",
+    annotations: {
+      title: "Unlike Comment",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: "object",
       properties: {
