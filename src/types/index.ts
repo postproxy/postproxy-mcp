@@ -126,6 +126,9 @@ export interface YouTubeParams {
   privacy_status?: "public" | "unlisted" | "private"; // Video visibility
   cover_url?: string; // Custom thumbnail URL
   made_for_kids?: boolean; // Whether the video is made for kids
+  tags?: string[]; // Tags for the video
+  category_id?: string; // YouTube video category ID (defaults to "22" / People & Blogs)
+  contains_synthetic_media?: boolean; // Disclose if the video contains altered or synthetic (AI-generated) content
 }
 
 /**

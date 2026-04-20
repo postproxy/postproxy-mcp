@@ -124,7 +124,7 @@ export const TOOL_DEFINITIONS = [
             },
             youtube: {
               type: "object",
-              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL), made_for_kids (bool)",
+              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL), made_for_kids (bool), tags (array of strings), category_id (string, defaults to '22' People & Blogs), contains_synthetic_media (bool, disclose AI-generated content)",
               additionalProperties: true,
             },
             tiktok: {
