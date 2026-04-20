@@ -12,6 +12,7 @@ import {
   handlePostStatus,
   handlePostUpdate,
   handlePostDelete,
+  handlePostDeleteOnPlatform,
   handlePostPublishDraft,
   handlePostStats,
 } from "./tools/post.js";
@@ -124,7 +125,7 @@ export const TOOL_DEFINITIONS = [
             },
             youtube: {
               type: "object",
-              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL), made_for_kids (bool)",
+              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL), made_for_kids (bool), tags (array of strings), category_id (string, defaults to '22' People & Blogs), contains_synthetic_media (bool, disclose AI-generated content)",
               additionalProperties: true,
             },
             tiktok: {
@@ -299,7 +300,8 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "post_delete",
-    description: "Delete a post by post ID",
+    description:
+      "Delete a post from the database. By default does NOT remove from social media platforms. Pass delete_on_platform=true to also remove from all published platforms before DB deletion.",
     annotations: {
       title: "Delete Post",
       readOnlyHint: false,
@@ -313,6 +315,47 @@ export const TOOL_DEFINITIONS = [
         post_id: {
           type: "string",
           description: "Post ID to delete",
+        },
+        delete_on_platform: {
+          type: "boolean",
+          description:
+            "If true, also deletes the post from all published platforms before removing it from the database. Defaults to false.",
+        },
+      },
+      required: ["post_id"],
+    },
+  },
+  {
+    name: "post_delete_on_platform",
+    description:
+      "Delete a published post from social media platforms WITHOUT removing it from the database. Async via background job. Optionally narrow scope by post_profile_id (covers entire thread for that profile), profile_id, or network. With no scope, deletes from all published platforms. Supported: Facebook, Threads, X (Twitter), LinkedIn, Pinterest, YouTube. NOT supported: Instagram, TikTok.",
+    annotations: {
+      title: "Delete Post on Platform",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post ID",
+        },
+        post_profile_id: {
+          type: "string",
+          description:
+            "ID of a specific post profile. Resolves to underlying profile and deletes across the full thread (parent + children).",
+        },
+        profile_id: {
+          type: "string",
+          description: "ID of a profile. Deletes all post profiles for this profile on the post.",
+        },
+        network: {
+          type: "string",
+          description:
+            "Network name (e.g. twitter, facebook, threads, linkedin, pinterest, youtube). Deletes all post profiles for this network on the post.",
         },
       },
       required: ["post_id"],
@@ -847,53 +890,55 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
 
     try {
       switch (name) {
-        case "auth.status":
+        case "auth_status":
           return await handleAuthStatus(client);
-        case "profiles.list":
+        case "profiles_list":
           return await handleProfilesList(client);
-        case "post.publish":
+        case "post_publish":
           return await handlePostPublish(client, args as any);
-        case "post.status":
+        case "post_status":
           return await handlePostStatus(client, args as any);
-        case "post.publish_draft":
+        case "post_publish_draft":
           return await handlePostPublishDraft(client, args as any);
-        case "post.update":
+        case "post_update":
           return await handlePostUpdate(client, args as any);
-        case "post.delete":
+        case "post_delete":
           return await handlePostDelete(client, args as any);
-        case "history.list":
+        case "post_delete_on_platform":
+          return await handlePostDeleteOnPlatform(client, args as any);
+        case "history_list":
           return await handleHistoryList(client, args as any);
-        case "post.stats":
+        case "post_stats":
           return await handlePostStats(client, args as any);
-        case "profiles.placements":
+        case "profiles_placements":
           return await handleProfilesPlacements(client, args as any);
-        case "queues.list":
+        case "queues_list":
           return await handleQueuesList(client, args as any);
-        case "queues.get":
+        case "queues_get":
           return await handleQueuesGet(client, args as any);
-        case "queues.create":
+        case "queues_create":
           return await handleQueuesCreate(client, args as any);
-        case "queues.update":
+        case "queues_update":
           return await handleQueuesUpdate(client, args as any);
-        case "queues.delete":
+        case "queues_delete":
           return await handleQueuesDelete(client, args as any);
-        case "queues.next_slot":
+        case "queues_next_slot":
           return await handleQueuesNextSlot(client, args as any);
-        case "comments.list":
+        case "comments_list":
           return await handleCommentsList(client, args as any);
-        case "comments.get":
+        case "comments_get":
           return await handleCommentsGet(client, args as any);
-        case "comments.create":
+        case "comments_create":
           return await handleCommentsCreate(client, args as any);
-        case "comments.delete":
+        case "comments_delete":
           return await handleCommentsDelete(client, args as any);
-        case "comments.hide":
+        case "comments_hide":
           return await handleCommentsHide(client, args as any);
-        case "comments.unhide":
+        case "comments_unhide":
           return await handleCommentsUnhide(client, args as any);
-        case "comments.like":
+        case "comments_like":
           return await handleCommentsLike(client, args as any);
-        case "comments.unlike":
+        case "comments_unlike":
           return await handleCommentsUnlike(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);

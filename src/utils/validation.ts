@@ -90,6 +90,9 @@ export const YouTubeParamsSchema = z.object({
   }).optional(),
   cover_url: URLSchema.optional(),
   made_for_kids: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+  category_id: z.string().optional(),
+  contains_synthetic_media: z.boolean().optional(),
 }).strict();
 
 // TikTok parameters validation

@@ -62,6 +62,13 @@ export interface CreatePostResponse {
   thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
 }
 
+export interface PlatformErrorDetails {
+  platform_error_code: string | null;
+  platform_error_subcode: string | null;
+  platform_error_message: string | null;
+  postproxy_note: string | null;
+}
+
 export interface PlatformOutcome {
   platform: string;
   status: "pending" | "processing" | "published" | "failed" | "deleted";
@@ -74,7 +81,8 @@ export interface PlatformOutcome {
   };
   url?: string;
   post_id?: string;
-  error?: string | null; // Error message from platform (replaces error_reason)
+  error?: string | null; // Error summary (null on success)
+  error_details?: PlatformErrorDetails | null; // Structured platform error info
 }
 
 export interface PostDetails {
@@ -126,6 +134,9 @@ export interface YouTubeParams {
   privacy_status?: "public" | "unlisted" | "private"; // Video visibility
   cover_url?: string; // Custom thumbnail URL
   made_for_kids?: boolean; // Whether the video is made for kids
+  tags?: string[]; // Tags for the video
+  category_id?: string; // YouTube video category ID (defaults to "22" / People & Blogs)
+  contains_synthetic_media?: boolean; // Disclose if the video contains altered or synthetic (AI-generated) content
 }
 
 /**

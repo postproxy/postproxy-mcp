@@ -3,6 +3,7 @@
  */
 
 import type { PostProxyClient } from "../api/client.js";
+import type { PlatformErrorDetails } from "../types/index.js";
 import { PostPublishSchema } from "../utils/validation.js";
 import { generateIdempotencyKey } from "../utils/idempotency.js";
 import { createError, ErrorCodes } from "../utils/errors.js";
@@ -145,6 +146,7 @@ export async function handlePostStatus(
       url?: string;
       post_id?: string;
       error?: string | null;
+      error_details?: PlatformErrorDetails | null;
       attempted_at: string | null;
       insights?: any;
     }> = [];
@@ -157,6 +159,7 @@ export async function handlePostStatus(
           url: platform.url,
           post_id: platform.post_id,
           error: platform.error || null,
+          error_details: platform.error_details ?? null,
           attempted_at: platform.attempted_at,
           insights: platform.insights,
         });
@@ -356,14 +359,14 @@ export async function handlePostUpdate(
 
 export async function handlePostDelete(
   client: PostProxyClient,
-  args: { post_id: string }
+  args: { post_id: string; delete_on_platform?: boolean }
 ) {
   if (!args.post_id) {
     throw createError(ErrorCodes.VALIDATION_ERROR, "post_id is required");
   }
 
   try {
-    await client.deletePost(args.post_id);
+    await client.deletePost(args.post_id, args.delete_on_platform);
     return {
       content: [
         {
@@ -372,6 +375,7 @@ export async function handlePostDelete(
             {
               post_id: args.post_id,
               deleted: true,
+              delete_on_platform: args.delete_on_platform || false,
             },
             null,
             2
@@ -384,6 +388,57 @@ export async function handlePostDelete(
     throw createError(
       ErrorCodes.API_ERROR,
       `Failed to delete post: ${(error as Error).message}`
+    );
+  }
+}
+
+export async function handlePostDeleteOnPlatform(
+  client: PostProxyClient,
+  args: {
+    post_id: string;
+    post_profile_id?: string;
+    profile_id?: string;
+    network?: string;
+  }
+) {
+  if (!args.post_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "post_id is required");
+  }
+
+  try {
+    const response = await client.deletePostOnPlatform(args.post_id, {
+      post_profile_id: args.post_profile_id,
+      profile_id: args.profile_id,
+      network: args.network,
+    });
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              post_id: args.post_id,
+              scope: args.post_profile_id
+                ? { post_profile_id: args.post_profile_id }
+                : args.profile_id
+                  ? { profile_id: args.profile_id }
+                  : args.network
+                    ? { network: args.network }
+                    : "all",
+              accepted: true,
+              response,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "post.delete_on_platform");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to delete post on platform: ${(error as Error).message}`
     );
   }
 }

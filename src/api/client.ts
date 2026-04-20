@@ -570,9 +570,26 @@ export class PostProxyClient {
 
   /**
    * Delete a post by ID
+   * @param deleteOnPlatform If true, also deletes from all published platforms before DB removal
    */
-  async deletePost(postId: string): Promise<void> {
-    await this.request<void>("DELETE", `/posts/${postId}`);
+  async deletePost(postId: string, deleteOnPlatform?: boolean): Promise<void> {
+    const query = deleteOnPlatform ? "?delete_on_platform=true" : "";
+    await this.request<void>("DELETE", `/posts/${postId}${query}`);
+  }
+
+  /**
+   * Delete a published post from social media platforms (DB record stays).
+   * Async via background job. Optionally narrow by post_profile_id, profile_id, or network.
+   */
+  async deletePostOnPlatform(
+    postId: string,
+    params?: { post_profile_id?: string; profile_id?: string; network?: string }
+  ): Promise<any> {
+    const body: Record<string, string> = {};
+    if (params?.post_profile_id) body.post_profile_id = params.post_profile_id;
+    if (params?.profile_id) body.profile_id = params.profile_id;
+    if (params?.network) body.network = params.network;
+    return this.request<any>("POST", `/posts/${postId}/delete_on_platform`, body);
   }
 
   /**
