@@ -62,6 +62,13 @@ export interface CreatePostResponse {
   thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
 }
 
+export interface PlatformErrorDetails {
+  platform_error_code: string | null;
+  platform_error_subcode: string | null;
+  platform_error_message: string | null;
+  postproxy_note: string | null;
+}
+
 export interface PlatformOutcome {
   platform: string;
   status: "pending" | "processing" | "published" | "failed" | "deleted";
@@ -74,7 +81,8 @@ export interface PlatformOutcome {
   };
   url?: string;
   post_id?: string;
-  error?: string | null; // Error message from platform (replaces error_reason)
+  error?: string | null; // Error summary (null on success)
+  error_details?: PlatformErrorDetails | null; // Structured platform error info
 }
 
 export interface PostDetails {

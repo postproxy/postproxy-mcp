@@ -28,12 +28,20 @@ interface Profile {
   profile_group_id: string;
 }
 
+interface PlatformErrorDetails {
+  platform_error_code: string | null;
+  platform_error_subcode: string | null;
+  platform_error_message: string | null;
+  postproxy_note: string | null;
+}
+
 interface PlatformOutcome {
   platform: string;
   status: "pending" | "processing" | "published" | "failed" | "deleted";
   url?: string;
   post_id?: string;
   error?: string | null;
+  error_details?: PlatformErrorDetails | null;
   attempted_at: string | null;
   insights?: any;
 }
@@ -320,6 +328,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       url: platform.url,
       post_id: platform.post_id,
       error: platform.error || null,
+      error_details: platform.error_details ?? null,
       attempted_at: platform.attempted_at,
       insights: platform.insights,
     }));

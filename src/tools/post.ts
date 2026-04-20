@@ -3,6 +3,7 @@
  */
 
 import type { PostProxyClient } from "../api/client.js";
+import type { PlatformErrorDetails } from "../types/index.js";
 import { PostPublishSchema } from "../utils/validation.js";
 import { generateIdempotencyKey } from "../utils/idempotency.js";
 import { createError, ErrorCodes } from "../utils/errors.js";
@@ -145,6 +146,7 @@ export async function handlePostStatus(
       url?: string;
       post_id?: string;
       error?: string | null;
+      error_details?: PlatformErrorDetails | null;
       attempted_at: string | null;
       insights?: any;
     }> = [];
@@ -157,6 +159,7 @@ export async function handlePostStatus(
           url: platform.url,
           post_id: platform.post_id,
           error: platform.error || null,
+          error_details: platform.error_details ?? null,
           attempted_at: platform.attempted_at,
           insights: platform.insights,
         });
