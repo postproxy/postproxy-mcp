@@ -890,55 +890,55 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
 
     try {
       switch (name) {
-        case "auth.status":
+        case "auth_status":
           return await handleAuthStatus(client);
-        case "profiles.list":
+        case "profiles_list":
           return await handleProfilesList(client);
-        case "post.publish":
+        case "post_publish":
           return await handlePostPublish(client, args as any);
-        case "post.status":
+        case "post_status":
           return await handlePostStatus(client, args as any);
-        case "post.publish_draft":
+        case "post_publish_draft":
           return await handlePostPublishDraft(client, args as any);
-        case "post.update":
+        case "post_update":
           return await handlePostUpdate(client, args as any);
-        case "post.delete":
+        case "post_delete":
           return await handlePostDelete(client, args as any);
-        case "post.delete_on_platform":
+        case "post_delete_on_platform":
           return await handlePostDeleteOnPlatform(client, args as any);
-        case "history.list":
+        case "history_list":
           return await handleHistoryList(client, args as any);
-        case "post.stats":
+        case "post_stats":
           return await handlePostStats(client, args as any);
-        case "profiles.placements":
+        case "profiles_placements":
           return await handleProfilesPlacements(client, args as any);
-        case "queues.list":
+        case "queues_list":
           return await handleQueuesList(client, args as any);
-        case "queues.get":
+        case "queues_get":
           return await handleQueuesGet(client, args as any);
-        case "queues.create":
+        case "queues_create":
           return await handleQueuesCreate(client, args as any);
-        case "queues.update":
+        case "queues_update":
           return await handleQueuesUpdate(client, args as any);
-        case "queues.delete":
+        case "queues_delete":
           return await handleQueuesDelete(client, args as any);
-        case "queues.next_slot":
+        case "queues_next_slot":
           return await handleQueuesNextSlot(client, args as any);
-        case "comments.list":
+        case "comments_list":
           return await handleCommentsList(client, args as any);
-        case "comments.get":
+        case "comments_get":
           return await handleCommentsGet(client, args as any);
-        case "comments.create":
+        case "comments_create":
           return await handleCommentsCreate(client, args as any);
-        case "comments.delete":
+        case "comments_delete":
           return await handleCommentsDelete(client, args as any);
-        case "comments.hide":
+        case "comments_hide":
           return await handleCommentsHide(client, args as any);
-        case "comments.unhide":
+        case "comments_unhide":
           return await handleCommentsUnhide(client, args as any);
-        case "comments.like":
+        case "comments_like":
           return await handleCommentsLike(client, args as any);
-        case "comments.unlike":
+        case "comments_unlike":
           return await handleCommentsUnlike(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
