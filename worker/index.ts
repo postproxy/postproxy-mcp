@@ -411,10 +411,41 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   private async handlePostDelete(args: any): Promise<string> {
-    const { post_id } = args;
+    const { post_id, delete_on_platform } = args;
     if (!post_id) throw new Error("post_id is required");
-    await this.apiRequest<void>("DELETE", `/posts/${post_id}`);
-    return JSON.stringify({ post_id, deleted: true }, null, 2);
+    const query = delete_on_platform ? "?delete_on_platform=true" : "";
+    await this.apiRequest<void>("DELETE", `/posts/${post_id}${query}`);
+    return JSON.stringify(
+      { post_id, deleted: true, delete_on_platform: delete_on_platform || false },
+      null,
+      2
+    );
+  }
+
+  private async handlePostDeleteOnPlatform(args: any): Promise<string> {
+    const { post_id, post_profile_id, profile_id, network } = args;
+    if (!post_id) throw new Error("post_id is required");
+
+    const body: Record<string, string> = {};
+    if (post_profile_id) body.post_profile_id = post_profile_id;
+    if (profile_id) body.profile_id = profile_id;
+    if (network) body.network = network;
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/posts/${post_id}/delete_on_platform`,
+      body
+    );
+
+    const scope = post_profile_id
+      ? { post_profile_id }
+      : profile_id
+        ? { profile_id }
+        : network
+          ? { network }
+          : "all";
+
+    return JSON.stringify({ post_id, scope, accepted: true, response }, null, 2);
   }
 
   private async handleHistoryList(args: any): Promise<string> {
@@ -671,6 +702,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handlePostUpdate(args);
       case "post_delete":
         return await this.handlePostDelete(args);
+      case "post_delete_on_platform":
+        return await this.handlePostDeleteOnPlatform(args);
       case "post_stats":
         return await this.handlePostStats(args);
       case "history_list":
