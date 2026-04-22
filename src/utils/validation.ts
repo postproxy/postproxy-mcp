@@ -62,6 +62,25 @@ export const MediaItemSchema = z.string().refine(
 );
 
 /**
+ * Schema for cover image source (URL or local file path).
+ * Local paths get uploaded as cover_file via multipart; URLs pass through as cover_url.
+ */
+export const CoverSourceSchema = z.string().refine(
+  (value) => {
+    if (isFilePath(value)) return true;
+    try {
+      new URL(value);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  {
+    message: "Must be a valid URL or file path",
+  }
+);
+
+/**
  * Platform-specific validation schemas
  */
 
@@ -74,7 +93,7 @@ export const InstagramParamsSchema = z.object({
     message: "Instagram allows up to 10 collaborators for posts, 3 for reels",
   }).optional(),
   first_comment: z.string().optional(),
-  cover_url: URLSchema.optional(),
+  cover_url: CoverSourceSchema.optional(),
   audio_name: z.string().optional(),
   trial_strategy: z.enum(["MANUAL", "SS_PERFORMANCE"], {
     errorMap: () => ({ message: "Instagram trial_strategy must be 'MANUAL' or 'SS_PERFORMANCE'" }),
@@ -88,7 +107,7 @@ export const YouTubeParamsSchema = z.object({
   privacy_status: z.enum(["public", "unlisted", "private"], {
     errorMap: () => ({ message: "YouTube privacy_status must be 'public', 'unlisted', or 'private'" }),
   }).optional(),
-  cover_url: URLSchema.optional(),
+  cover_url: CoverSourceSchema.optional(),
   made_for_kids: z.boolean().optional(),
   tags: z.array(z.string()).optional(),
   category_id: z.string().optional(),
@@ -135,6 +154,14 @@ export const LinkedInParamsSchema = z.object({
   organization_id: z.string().optional(),
 }).strict();
 
+// Pinterest parameters validation
+export const PinterestParamsSchema = z.object({
+  cover_url: CoverSourceSchema.optional(),
+  board_id: z.string().optional(),
+  title: z.string().optional(),
+  link: z.string().optional(),
+}).strict();
+
 // Twitter/X and Threads don't have platform-specific parameters
 export const TwitterParamsSchema = z.object({}).strict();
 export const ThreadsParamsSchema = z.object({}).strict();
@@ -146,6 +173,7 @@ export const PlatformParamsSchema = z.object({
   tiktok: TikTokParamsSchema.optional(),
   facebook: FacebookParamsSchema.optional(),
   linkedin: LinkedInParamsSchema.optional(),
+  pinterest: PinterestParamsSchema.optional(),
   twitter: TwitterParamsSchema.optional(),
   threads: ThreadsParamsSchema.optional(),
 }).strict().optional();

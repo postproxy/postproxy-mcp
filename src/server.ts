@@ -120,12 +120,12 @@ export const TOOL_DEFINITIONS = [
           properties: {
             instagram: {
               type: "object",
-              description: "Instagram: format (post|reel|story), collaborators (array of usernames), first_comment (string), cover_url (string), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms)",
+              description: "Instagram: format (post|reel|story), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms)",
               additionalProperties: true,
             },
             youtube: {
               type: "object",
-              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (thumbnail URL), made_for_kids (bool), tags (array of strings), category_id (string, defaults to '22' People & Blogs), contains_synthetic_media (bool, disclose AI-generated content)",
+              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (custom thumbnail — URL or local file path; local paths are uploaded as cover_file), made_for_kids (bool), tags (array of strings), category_id (string, defaults to '22' People & Blogs), contains_synthetic_media (bool, disclose AI-generated content)",
               additionalProperties: true,
             },
             tiktok: {
@@ -141,6 +141,11 @@ export const TOOL_DEFINITIONS = [
             linkedin: {
               type: "object",
               description: "LinkedIn: organization_id (string for company pages)",
+              additionalProperties: true,
+            },
+            pinterest: {
+              type: "object",
+              description: "Pinterest: cover_url (cover image for video pins — URL or local file path; local paths are uploaded as cover_file), board_id (string), title (string), link (string)",
               additionalProperties: true,
             },
             twitter: {

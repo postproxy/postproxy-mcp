@@ -173,6 +173,16 @@ export interface LinkedInParams {
 }
 
 /**
+ * Platform-specific parameters for Pinterest
+ */
+export interface PinterestParams {
+  cover_url?: string; // Cover image for video pins (URL or local file path)
+  board_id?: string;
+  title?: string;
+  link?: string;
+}
+
+/**
  * Platform-specific parameters for Twitter/X
  * Note: Twitter/X does not have platform-specific parameters
  */
@@ -193,6 +203,7 @@ export interface PlatformParams {
   tiktok?: TikTokParams;
   facebook?: FacebookParams;
   linkedin?: LinkedInParams;
+  pinterest?: PinterestParams;
   twitter?: TwitterParams;
   threads?: ThreadsParams;
 }

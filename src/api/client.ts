@@ -91,6 +91,103 @@ export class PostProxyClient {
   }
 
   /**
+   * Platforms that accept a cover file upload (Instagram Reels, YouTube, Pinterest).
+   */
+  private readonly COVER_FILE_PLATFORMS = ["instagram", "youtube", "pinterest"] as const;
+
+  /**
+   * Extract per-platform cover_url values that are local file paths so they can be
+   * uploaded as cover_file via multipart. Returns sanitized platforms (with those
+   * cover_url entries removed) plus a map of platform → local path.
+   */
+  private extractCoverFiles(
+    platforms: Record<string, any> | undefined
+  ): {
+    sanitized: Record<string, Record<string, any>> | undefined;
+    coverFiles: Record<string, string>;
+  } {
+    if (!platforms) return { sanitized: undefined, coverFiles: {} };
+
+    const coverFiles: Record<string, string> = {};
+    const sanitized: Record<string, Record<string, any>> = {};
+
+    for (const [platform, params] of Object.entries(platforms)) {
+      if (
+        params &&
+        typeof params === "object" &&
+        typeof params.cover_url === "string" &&
+        isFilePath(params.cover_url) &&
+        (this.COVER_FILE_PLATFORMS as readonly string[]).includes(platform)
+      ) {
+        coverFiles[platform] = params.cover_url;
+        const { cover_url, ...rest } = params;
+        sanitized[platform] = rest;
+      } else {
+        sanitized[platform] = params;
+      }
+    }
+
+    return { sanitized, coverFiles };
+  }
+
+  /**
+   * Flatten a nested platforms object into bracket-notation FormData entries.
+   * {youtube: {title: "x", tags: ["a","b"]}}
+   *   → platforms[youtube][title]=x, platforms[youtube][tags][]=a, platforms[youtube][tags][]=b
+   * Skips undefined/null values. Arrays use the Rails-style `[]` suffix.
+   */
+  private appendPlatformsAsBrackets(
+    formData: FormData,
+    platforms: Record<string, Record<string, any>>
+  ): void {
+    for (const [platform, params] of Object.entries(platforms)) {
+      if (!params || typeof params !== "object") continue;
+      for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null) continue;
+        const base = `platforms[${platform}][${key}]`;
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item === undefined || item === null) continue;
+            formData.append(`${base}[]`, String(item));
+          }
+        } else if (typeof value === "object") {
+          // Nested object — serialize as JSON under the key (rare case)
+          formData.append(base, JSON.stringify(value));
+        } else {
+          formData.append(base, String(value));
+        }
+      }
+    }
+  }
+
+  /**
+   * Append a local file to FormData under a given field name.
+   */
+  private appendFileField(
+    formData: FormData,
+    fieldName: string,
+    filePath: string
+  ): void {
+    const expandedPath = this.expandPath(filePath);
+    let fileContent: Buffer;
+    try {
+      fileContent = readFileSync(expandedPath);
+    } catch (error) {
+      throw createError(
+        ErrorCodes.VALIDATION_ERROR,
+        `Failed to read file: ${filePath} - ${(error as Error).message}`
+      );
+    }
+    const fileName = basename(expandedPath);
+    const mimeType = this.getMimeType(expandedPath);
+    const blob = new Blob([new Uint8Array(fileContent)], { type: mimeType });
+    formData.append(fieldName, blob, fileName);
+    if (process.env.POSTPROXY_MCP_DEBUG === "1") {
+      log(`Adding file to upload: ${fieldName} → ${fileName} (${mimeType}, ${fileContent.length} bytes)`);
+    }
+  }
+
+  /**
    * Create post using multipart/form-data (for file uploads)
    * Uses form field names with brackets: post[body], profiles[], media[]
    */
@@ -123,23 +220,7 @@ export class PostProxyClient {
     if (params.media && params.media.length > 0) {
       for (const mediaItem of params.media) {
         if (isFilePath(mediaItem)) {
-          // It's a file path - read and upload the file
-          const expandedPath = this.expandPath(mediaItem);
-          try {
-            const fileContent = readFileSync(expandedPath);
-            const fileName = basename(expandedPath);
-            const mimeType = this.getMimeType(expandedPath);
-            const blob = new Blob([fileContent], { type: mimeType });
-            formData.append("media[]", blob, fileName);
-            if (process.env.POSTPROXY_MCP_DEBUG === "1") {
-              log(`Adding file to upload: ${fileName} (${mimeType}, ${fileContent.length} bytes)`);
-            }
-          } catch (error) {
-            throw createError(
-              ErrorCodes.VALIDATION_ERROR,
-              `Failed to read file: ${mediaItem} - ${(error as Error).message}`
-            );
-          }
+          this.appendFileField(formData, "media[]", mediaItem);
         } else {
           // It's a URL - pass it as-is
           formData.append("media[]", mediaItem);
@@ -147,9 +228,24 @@ export class PostProxyClient {
       }
     }
 
-    // Add platform-specific parameters as JSON
-    if (params.platforms && Object.keys(params.platforms).length > 0) {
-      formData.append("platforms", JSON.stringify(params.platforms));
+    // Strip local-path cover_url entries out of the platforms JSON — those get
+    // uploaded separately as platforms[<platform>][cover_file] file fields.
+    const { sanitized: sanitizedPlatforms, coverFiles } = this.extractCoverFiles(params.platforms);
+    const hasCoverFiles = Object.keys(coverFiles).length > 0;
+
+    if (sanitizedPlatforms && Object.keys(sanitizedPlatforms).length > 0) {
+      if (hasCoverFiles) {
+        // Backend can't merge a `platforms` JSON blob with `platforms[<p>][cover_file]`
+        // bracket fields — they collide. When uploading a cover file, emit every
+        // platform param as bracket notation so it all lives in one parsed tree.
+        this.appendPlatformsAsBrackets(formData, sanitizedPlatforms);
+      } else {
+        formData.append("platforms", JSON.stringify(sanitizedPlatforms));
+      }
+    }
+
+    for (const [platform, filePath] of Object.entries(coverFiles)) {
+      this.appendFileField(formData, `platforms[${platform}][cover_file]`, filePath);
     }
 
     // Add thread children
@@ -382,7 +478,12 @@ export class PostProxyClient {
    */
   async createPost(params: CreatePostParams): Promise<CreatePostResponse> {
     // Check if we need to use multipart/form-data for file uploads
-    if (params.media && params.media.length > 0 && this.hasFilePaths(params.media)) {
+    // (either media file paths or local cover_url paths for supported platforms)
+    const mediaHasFiles = !!(params.media && params.media.length > 0 && this.hasFilePaths(params.media));
+    const { coverFiles } = this.extractCoverFiles(params.platforms);
+    const hasCoverFiles = Object.keys(coverFiles).length > 0;
+
+    if (mediaHasFiles || hasCoverFiles) {
       const extraHeaders: Record<string, string> = {};
       if (params.idempotency_key) {
         extraHeaders["Idempotency-Key"] = params.idempotency_key;
