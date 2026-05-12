@@ -10,6 +10,9 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
+const PACKAGE_VERSION = "1.7.0";
+const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
+
 interface Env {
   POSTPROXY_BASE_URL: string;
   POSTPROXY_APP_URL: string;
@@ -91,6 +94,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       Authorization: `Bearer ${this.getApiKey()}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "User-Agent": USER_AGENT,
     };
 
     if (extraHeaders) {
@@ -492,6 +496,21 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify({ placements }, null, 2);
   }
 
+  private async handleProfilesStats(args: any): Promise<string> {
+    const { profile_id, placement_id, from, to } = args;
+    if (!profile_id) throw new Error("profile_id is required");
+
+    const queryParams = new URLSearchParams();
+    if (placement_id) queryParams.append("placement_id", placement_id);
+    if (from) queryParams.append("from", from);
+    if (to) queryParams.append("to", to);
+
+    const qs = queryParams.toString();
+    const path = `/profiles/${profile_id}/stats${qs ? `?${qs}` : ""}`;
+    const response = await this.apiRequest<any>("GET", path);
+    return JSON.stringify(response, null, 2);
+  }
+
   private async handleQueuesList(args: any): Promise<string> {
     this.getApiKey();
     const path = args?.profile_group_id
@@ -692,6 +711,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleProfilesList();
       case "profiles_placements":
         return await this.handleProfilesPlacements(args);
+      case "profiles_stats":
+        return await this.handleProfilesStats(args);
       case "post_publish":
         return await this.handlePostPublish(args);
       case "post_status":
@@ -755,7 +776,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           result: {
             protocolVersion: "2025-03-26",
             capabilities: { tools: {} },
-            serverInfo: { name: "postproxy-mcp", version: "1.5.0" },
+            serverInfo: { name: "postproxy-mcp", version: "1.7.0" },
           },
           id,
         };
@@ -911,7 +932,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return Response.json(
       {
         name: "postproxy-mcp",
-        version: "1.5.0",
+        version: "1.7.0",
         description: "MCP server for PostProxy - Social Media Management",
         tools: TOOL_DEFINITIONS.map((t) => t.name),
       },

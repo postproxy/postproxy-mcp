@@ -96,7 +96,7 @@ List all available social media profiles for posting.
 
 #### `profiles_placements`
 
-List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. Available for `facebook`, `linkedin`, and `pinterest` profiles.
+List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. For Telegram profiles, placements are channels the bot can post to. Available for `facebook`, `linkedin`, `pinterest`, and `telegram` profiles.
 
 **Parameters**:
 - `profile_id` (string, required): Profile hashid
@@ -122,6 +122,46 @@ List available placements for a profile. For Facebook profiles, placements are b
   - **LinkedIn**: defaults to the personal profile
   - **Facebook**: defaults to a random connected page (if only one page is connected, no need to set a placement ID)
   - **Pinterest**: it fails
+  - **Telegram**: it fails — `chat_id` is required on every post
+
+#### `profiles_stats`
+
+Get the follower/engagement timeseries for a profile. Snapshots are captured roughly every 23 hours, so you can plot follower growth and other trends over time. The `stats` fields are platform-native (not normalized) — see [Stats Fields by Platform](#stats-fields-by-platform) in the `post_stats` section for shape and add-on profile-level keys (`followers_count`, `followersCount`, etc.) per network.
+
+**Parameters**:
+- `profile_id` (string, required): Profile hashid
+- `placement_id` (string, conditional): **Required** for `facebook`, `linkedin`, and `telegram` profiles. Get it from `profiles_placements`. Omit for `instagram`, `threads`, `youtube`, `twitter`, `tiktok`, `pinterest`, and `bluesky`.
+- `from` (string, optional): ISO 8601 timestamp — only include snapshots recorded at or after this time
+- `to` (string, optional): ISO 8601 timestamp — only include snapshots recorded at or before this time
+
+**Returns** (LinkedIn example):
+```json
+{
+  "data": {
+    "profile_id": "prof_li_001",
+    "platform": "linkedin",
+    "placement_id": "108520199",
+    "records": [
+      { "stats": { "followerCount": 4500, "shareCount": 8, "likeCount": 80 }, "recorded_at": "2026-05-09T08:00:00Z" },
+      { "stats": { "followerCount": 4520, "shareCount": 9, "likeCount": 90 }, "recorded_at": "2026-05-10T08:00:00Z" }
+    ]
+  }
+}
+```
+
+For non-placement networks (e.g. Bluesky), omit `placement_id`:
+```json
+{
+  "data": {
+    "profile_id": "prof_bsky_001",
+    "platform": "bluesky",
+    "placement_id": null,
+    "records": [
+      { "stats": { "followersCount": 8800, "postsCount": 40 }, "recorded_at": "2026-05-09T08:00:00Z" }
+    ]
+  }
+}
+```
 
 ### Post Management
 
@@ -785,6 +825,36 @@ Or with explicit parameters:
 }
 ```
 
+#### Bluesky Examples
+
+**Plain Bluesky post (auto-faceted mentions/tags/links):**
+```json
+{
+  "content": "Hey @jay.bsky.team — check out our latest #ruby post: https://example.com/blog/post",
+  "profiles": ["bluesky"]
+}
+```
+You don't need any markup — Postproxy auto-converts `@handles`, `#tags`, and URLs into AT Protocol facets, and generates a link card preview from the URL's Open Graph meta (when no media is attached). 300-grapheme limit.
+
+#### Telegram Examples
+
+**Telegram channel post (HTML formatting):**
+```json
+{
+  "content": "<b>New release</b> — read more on our blog https://example.com/post",
+  "profiles": ["telegram"],
+  "platforms": {
+    "telegram": {
+      "chat_id": "-1001234567890",
+      "parse_mode": "HTML",
+      "disable_link_preview": true,
+      "disable_notification": false
+    }
+  }
+}
+```
+Use `profiles_placements` against your Telegram profile to list channel `chat_id`s the bot can post to. The bot must be added to the channel as administrator with permission to post.
+
 #### Cross-Platform Examples
 
 **Same Content, Different Platforms:**
@@ -854,6 +924,23 @@ Or with explicit parameters:
 
 **LinkedIn:**
 - `organization_id`: String - organization ID for company page posts
+
+**Telegram:**
+- `chat_id`: String, **required** — destination channel/chat ID (use `profiles_placements` to list)
+- `parse_mode`: "HTML" | "MarkdownV2" — omit for plain text
+- `disable_link_preview`: Boolean — suppress URL preview card
+- `disable_notification`: Boolean — send silently (no notification sound)
+- Character limit: 4,096 for text-only; 1,024 for the caption when media is attached (body beyond is truncated)
+- Media: images ≤10 MB (×10), video ≤50 MB (×10), documents ≤50 MB (×1)
+- The bot must be a member (preferably administrator with post permission) of the destination channel
+
+**Bluesky:**
+- No platform-specific parameters available
+- Character limit: 300 graphemes (emoji and combining sequences count as one)
+- Auto-detects `@handle.bsky.social` mentions, `#hashtags`, and URLs and converts them to clickable facets
+- Generates a link card preview from Open Graph meta when a URL is present and no media is attached
+- Media: images ≤1 MB (×4), video ≤100 MB (×1, 1–60s)
+- Supports threads via the standard `thread` array
 
 **Twitter/X & Threads:**
 - No platform-specific parameters available

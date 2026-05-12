@@ -102,3 +102,38 @@ export async function handleProfilesPlacements(
     );
   }
 }
+
+export async function handleProfilesStats(
+  client: PostProxyClient,
+  args: { profile_id: string; placement_id?: string; from?: string; to?: string }
+) {
+  logToolCall("profiles.stats", args);
+
+  if (!args.profile_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "profile_id is required");
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw createError(ErrorCodes.AUTH_MISSING, "API key is not configured");
+  }
+
+  try {
+    const response = await client.getProfileStats(args);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "profiles.stats");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to retrieve profile stats: ${(error as Error).message}`
+    );
+  }
+}

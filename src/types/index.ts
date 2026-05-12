@@ -195,6 +195,22 @@ export type TwitterParams = Record<string, never>;
 export type ThreadsParams = Record<string, never>;
 
 /**
+ * Platform-specific parameters for Bluesky
+ * Note: Bluesky does not have platform-specific parameters
+ */
+export type BlueskyParams = Record<string, never>;
+
+/**
+ * Platform-specific parameters for Telegram
+ */
+export interface TelegramParams {
+  chat_id: string;
+  parse_mode?: "HTML" | "MarkdownV2";
+  disable_link_preview?: boolean;
+  disable_notification?: boolean;
+}
+
+/**
  * Union type for all platform-specific parameters
  */
 export interface PlatformParams {
@@ -206,6 +222,8 @@ export interface PlatformParams {
   pinterest?: PinterestParams;
   twitter?: TwitterParams;
   threads?: ThreadsParams;
+  bluesky?: BlueskyParams;
+  telegram?: TelegramParams;
 }
 
 /**
@@ -245,6 +263,21 @@ export interface PostStats {
  */
 export interface StatsResponse {
   data: Record<string, PostStats>;
+}
+
+/**
+ * Stats timeseries for a single profile
+ */
+export interface ProfileStatsResponse {
+  data: {
+    profile_id: string;
+    platform: string;
+    placement_id: string | null;
+    records: Array<{
+      stats: Record<string, any>;
+      recorded_at: string;
+    }>;
+  };
 }
 
 /**

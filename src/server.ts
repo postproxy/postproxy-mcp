@@ -6,7 +6,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { PostProxyClient } from "./api/client.js";
 import { handleAuthStatus } from "./tools/auth.js";
-import { handleProfilesList, handleProfilesPlacements } from "./tools/profiles.js";
+import { handleProfilesList, handleProfilesPlacements, handleProfilesStats } from "./tools/profiles.js";
 import {
   handlePostPublish,
   handlePostStatus,
@@ -156,6 +156,16 @@ export const TOOL_DEFINITIONS = [
             threads: {
               type: "object",
               description: "Threads: No platform-specific parameters available. Supports threads.",
+              additionalProperties: true,
+            },
+            bluesky: {
+              type: "object",
+              description: "Bluesky: No platform-specific parameters available. Supports threads. Auto-converts @handles, #tags, and URLs into clickable facets; link cards are generated from URLs when no media is attached.",
+              additionalProperties: true,
+            },
+            telegram: {
+              type: "object",
+              description: "Telegram: chat_id (string, required — destination channel/chat ID from profiles_placements), parse_mode ('HTML'|'MarkdownV2'; omit for plain text), disable_link_preview (bool), disable_notification (bool). Character limit 4,096 for text-only / 1,024 with media.",
               additionalProperties: true,
             },
           },
@@ -420,7 +430,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "profiles_placements",
-    description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. Available for facebook, linkedin, and pinterest profiles.",
+    description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. For Telegram: channels the bot can post to. Available for facebook, linkedin, pinterest, and telegram profiles.",
     annotations: {
       title: "List Profile Placements",
       readOnlyHint: true,
@@ -433,6 +443,38 @@ export const TOOL_DEFINITIONS = [
         profile_id: {
           type: "string",
           description: "Profile hashid",
+        },
+      },
+      required: ["profile_id"],
+    },
+  },
+  {
+    name: "profiles_stats",
+    description: "Get the follower/engagement timeseries for a profile. Returns daily snapshots (captured every ~23h). placement_id is required for facebook, linkedin, and telegram profiles (get it from profiles_placements); omit for other networks. Fields in records[].stats are platform-native and not normalized.",
+    annotations: {
+      title: "Get Profile Stats",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid",
+        },
+        placement_id: {
+          type: "string",
+          description: "Required for facebook, linkedin, and telegram profiles. Get it from profiles_placements. Omit for instagram/threads/youtube/twitter/tiktok/pinterest/bluesky.",
+        },
+        from: {
+          type: "string",
+          description: "Optional ISO 8601 timestamp — only include snapshots recorded at or after this time",
+        },
+        to: {
+          type: "string",
+          description: "Optional ISO 8601 timestamp — only include snapshots recorded at or before this time",
         },
       },
       required: ["profile_id"],
@@ -871,7 +913,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "0.1.0",
+      version: "1.7.0",
     },
     {
       capabilities: {
@@ -917,6 +959,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handlePostStats(client, args as any);
         case "profiles_placements":
           return await handleProfilesPlacements(client, args as any);
+        case "profiles_stats":
+          return await handleProfilesStats(client, args as any);
         case "queues_list":
           return await handleQueuesList(client, args as any);
         case "queues_get":

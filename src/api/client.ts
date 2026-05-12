@@ -15,6 +15,7 @@ import type {
   Post,
   Placement,
   StatsResponse,
+  ProfileStatsResponse,
   PostQueue,
   CreateQueueParams,
   UpdateQueueParams,
@@ -26,6 +27,9 @@ import type {
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
+
+const PACKAGE_VERSION = "1.7.0";
+const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
   private apiKey: string;
@@ -264,6 +268,7 @@ export class PostProxyClient {
     // Build headers (no Content-Type - fetch will set it with boundary for multipart)
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
+      "User-Agent": USER_AGENT,
       ...extraHeaders,
     };
 
@@ -351,6 +356,7 @@ export class PostProxyClient {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
       "Content-Type": "application/json",
+      "User-Agent": USER_AGENT,
     };
 
     // Merge extra headers if provided
@@ -730,6 +736,31 @@ export class PostProxyClient {
       queryParams.append("to", params.to);
     }
     return this.request<StatsResponse>("GET", `/posts/stats?${queryParams.toString()}`);
+  }
+
+  /**
+   * Get stats timeseries for a single profile.
+   * placement_id is required for facebook, linkedin, and telegram profiles.
+   */
+  async getProfileStats(params: {
+    profile_id: string;
+    placement_id?: string;
+    from?: string;
+    to?: string;
+  }): Promise<ProfileStatsResponse> {
+    const queryParams = new URLSearchParams();
+    if (params.placement_id) {
+      queryParams.append("placement_id", params.placement_id);
+    }
+    if (params.from) {
+      queryParams.append("from", params.from);
+    }
+    if (params.to) {
+      queryParams.append("to", params.to);
+    }
+    const qs = queryParams.toString();
+    const path = `/profiles/${params.profile_id}/stats${qs ? `?${qs}` : ""}`;
+    return this.request<ProfileStatsResponse>("GET", path);
   }
 
   /**
