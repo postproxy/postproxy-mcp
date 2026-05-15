@@ -23,12 +23,16 @@ import type {
   CommentsListResponse,
   CreateCommentParams,
   CommentActionResponse,
+  ProfileComment,
+  ProfileCommentsListResponse,
+  CreateProfileCommentParams,
+  ListProfileCommentsParams,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.7.0";
+const PACKAGE_VERSION = "1.8.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -961,6 +965,61 @@ export class PostProxyClient {
     return this.request<CommentActionResponse>(
       "POST",
       `/posts/${postId}/comments/${commentId}/unlike?profile_id=${profileId}`
+    );
+  }
+
+  /**
+   * List profile-scoped comments (Google Business reviews + your replies)
+   */
+  async listProfileComments(
+    profileId: string,
+    params?: ListProfileCommentsParams
+  ): Promise<ProfileCommentsListResponse> {
+    const qs = new URLSearchParams();
+    if (params?.placement_id) qs.append("placement_id", params.placement_id);
+    if (params?.page !== undefined) qs.append("page", String(params.page));
+    if (params?.per_page !== undefined) qs.append("per_page", String(params.per_page));
+    const query = qs.toString();
+    return this.request<ProfileCommentsListResponse>(
+      "GET",
+      `/profiles/${profileId}/comments${query ? `?${query}` : ""}`
+    );
+  }
+
+  /**
+   * Get a single profile comment by postproxy ID or platform external_id
+   */
+  async getProfileComment(profileId: string, commentId: string): Promise<ProfileComment> {
+    return this.request<ProfileComment>(
+      "GET",
+      `/profiles/${profileId}/comments/${encodeURIComponent(commentId)}`
+    );
+  }
+
+  /**
+   * Reply to an existing profile comment (GBP review)
+   */
+  async createProfileComment(
+    profileId: string,
+    params: CreateProfileCommentParams
+  ): Promise<ProfileComment> {
+    return this.request<ProfileComment>(
+      "POST",
+      `/profiles/${profileId}/comments`,
+      params
+    );
+  }
+
+  /**
+   * Delete your reply to a profile comment. The original review remains.
+   */
+  async deleteProfileComment(
+    profileId: string,
+    commentId: string
+  ): Promise<CommentActionResponse> {
+    return this.request<CommentActionResponse>(
+      "DELETE",
+      `/profiles/${profileId}/comments/${encodeURIComponent(commentId)}`
     );
   }
 }

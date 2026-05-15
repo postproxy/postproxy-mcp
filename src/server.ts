@@ -35,6 +35,12 @@ import {
   handleCommentsLike,
   handleCommentsUnlike,
 } from "./tools/comment.js";
+import {
+  handleProfileCommentsList,
+  handleProfileCommentsGet,
+  handleProfileCommentsCreate,
+  handleProfileCommentsDelete,
+} from "./tools/profile-comment.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
 import { logToolCall } from "./utils/logger.js";
 
@@ -166,6 +172,11 @@ export const TOOL_DEFINITIONS = [
             telegram: {
               type: "object",
               description: "Telegram: chat_id (string, required — destination channel/chat ID from profiles_placements), parse_mode ('HTML'|'MarkdownV2'; omit for plain text), disable_link_preview (bool), disable_notification (bool). Character limit 4,096 for text-only / 1,024 with media.",
+              additionalProperties: true,
+            },
+            google_business: {
+              type: "object",
+              description: "Google Business: format ('standard'|'event'|'offer', default 'standard'), location_id (string, required — full resource path 'accounts/X/locations/Y' from profiles_placements), language_code (BCP47, e.g. 'en'; defaults to 'en'), cta_action_type ('LEARN_MORE'|'BOOK'|'ORDER'|'SHOP'|'SIGN_UP'|'CALL'), cta_url (HTTPS; required for every CTA except CALL). format='event' additional: event_title (required), event_start_date+event_end_date (YYYY-MM-DD, required), event_start_time+event_end_time (HH:MM, optional). format='offer' additional: event_start_date+event_end_date (required, validity window), event_title (optional, defaults to 'Special Offer'), offer_coupon_code (string), offer_redeem_url (string), offer_terms (string). Media: 1 image (jpg/png), max 5MB, min 400x300px (recommended 1200x900). No video. Text-only allowed. Character limit 1,500 (summary).",
               additionalProperties: true,
             },
           },
@@ -430,7 +441,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "profiles_placements",
-    description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. For Telegram: channels the bot can post to. Available for facebook, linkedin, pinterest, and telegram profiles.",
+    description: "List available placements for a profile. For Facebook: business pages. For LinkedIn: personal profile and organizations. For Pinterest: boards. For Telegram: channels the bot can post to. For Google Business: locations (returned as full resource paths 'accounts/X/locations/Y' to pass as location_id). Available for facebook, linkedin, pinterest, telegram, and google_business profiles.",
     annotations: {
       title: "List Profile Placements",
       readOnlyHint: true,
@@ -907,13 +918,123 @@ export const TOOL_DEFINITIONS = [
       required: ["post_id", "comment_id", "profile_id"],
     },
   },
+  {
+    name: "profile_comments_list",
+    description: "List profile-scoped comments. Currently surfaces Google Business reviews (reviews live on a location, not a post, so they cannot be reached via comments_list). Each item may include nested replies. Reviews sync from Google twice daily (06:00 and 18:00 UTC).",
+    annotations: {
+      title: "List Profile Comments",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid (must be a google_business profile today).",
+        },
+        placement_id: {
+          type: "string",
+          description: "Optional. Filter to reviews on a single location — pass the 'accounts/X/locations/Y' path from profiles_placements.",
+        },
+        page: {
+          type: "number",
+          description: "Page number (zero-indexed). Default 0.",
+        },
+        per_page: {
+          type: "number",
+          description: "Items per page. Default 20.",
+        },
+      },
+      required: ["profile_id"],
+    },
+  },
+  {
+    name: "profile_comments_get",
+    description: "Get a single profile comment (review or your reply) by Postproxy hashid or the platform's external_id (e.g. 'accounts/.../locations/.../reviews/...').",
+    annotations: {
+      title: "Get Profile Comment",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid",
+        },
+        comment_id: {
+          type: "string",
+          description: "Postproxy hashid OR the platform's external_id (the full resource path is accepted).",
+        },
+      },
+      required: ["profile_id", "comment_id"],
+    },
+  },
+  {
+    name: "profile_comments_create",
+    description: "Reply to an existing profile comment (Google Business review). Top-level comments are NOT allowed — you can only reply to a review that already exists. parent_id is required. Response is returned immediately with status 'pending'; a background job then publishes to Google and updates status to 'published' or 'failed'.",
+    annotations: {
+      title: "Reply to Profile Comment",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid (google_business profile).",
+        },
+        parent_id: {
+          type: "string",
+          description: "Postproxy hashid OR external_id of the review being replied to.",
+        },
+        text: {
+          type: "string",
+          description: "Reply body.",
+        },
+      },
+      required: ["profile_id", "parent_id", "text"],
+    },
+  },
+  {
+    name: "profile_comments_delete",
+    description: "Delete your reply to a profile comment. Only your own reply is removed — the underlying review is NOT deleted (Google does not allow businesses to delete reviews). Returns {accepted: true} while the delete is dispatched asynchronously.",
+    annotations: {
+      title: "Delete Profile Comment Reply",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid",
+        },
+        comment_id: {
+          type: "string",
+          description: "Postproxy hashid OR external_id of YOUR reply to remove.",
+        },
+      },
+      required: ["profile_id", "comment_id"],
+    },
+  },
 ] as const;
 
 export async function createMCPServer(client: PostProxyClient): Promise<Server> {
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.7.0",
+      version: "1.8.0",
     },
     {
       capabilities: {
@@ -989,6 +1110,14 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleCommentsLike(client, args as any);
         case "comments_unlike":
           return await handleCommentsUnlike(client, args as any);
+        case "profile_comments_list":
+          return await handleProfileCommentsList(client, args as any);
+        case "profile_comments_get":
+          return await handleProfileCommentsGet(client, args as any);
+        case "profile_comments_create":
+          return await handleProfileCommentsCreate(client, args as any);
+        case "profile_comments_delete":
+          return await handleProfileCommentsDelete(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
       }

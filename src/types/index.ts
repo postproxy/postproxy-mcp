@@ -33,6 +33,19 @@ export interface MediaAttachment {
   content_type: string;
   source_url: string | null;
   url: string | null;
+  platforms?: MediaPlatformError[];
+}
+
+/**
+ * Per-platform error for a single media attachment.
+ * Surfaced when an upload was rejected by one platform but accepted by others
+ * (e.g. Instagram rejected aspect ratio while Twitter accepted the file).
+ */
+export interface MediaPlatformError {
+  platform: string;
+  status: string;
+  error: string;
+  error_details?: PlatformErrorDetails | null;
 }
 
 export interface CreatePostParams {
@@ -211,6 +224,26 @@ export interface TelegramParams {
 }
 
 /**
+ * Platform-specific parameters for Google Business (local posts on a Business Profile location).
+ * `location_id` is required by the API; kept optional in TS to allow partial-update flows.
+ */
+export interface GoogleBusinessParams {
+  format?: "standard" | "event" | "offer";
+  location_id?: string;
+  language_code?: string;
+  cta_action_type?: "LEARN_MORE" | "BOOK" | "ORDER" | "SHOP" | "SIGN_UP" | "CALL";
+  cta_url?: string;
+  event_title?: string;
+  event_start_date?: string;
+  event_end_date?: string;
+  event_start_time?: string;
+  event_end_time?: string;
+  offer_coupon_code?: string;
+  offer_redeem_url?: string;
+  offer_terms?: string;
+}
+
+/**
  * Union type for all platform-specific parameters
  */
 export interface PlatformParams {
@@ -224,6 +257,7 @@ export interface PlatformParams {
   threads?: ThreadsParams;
   bluesky?: BlueskyParams;
   telegram?: TelegramParams;
+  google_business?: GoogleBusinessParams;
 }
 
 /**
@@ -387,4 +421,42 @@ export interface CreateCommentParams {
  */
 export interface CommentActionResponse {
   accepted: boolean;
+}
+
+/**
+ * Profile-scoped comment (currently Google Business reviews).
+ * Reviews live on a location/placement, not on a post.
+ */
+export interface ProfileComment {
+  id: string;
+  external_id: string | null;
+  parent_external_id: string | null;
+  placement_id: string | null;
+  body: string;
+  status: "synced" | "pending" | "published" | "failed" | "failed_waiting_for_retry";
+  author_username: string | null;
+  author_avatar_url: string | null;
+  platform_data: any | null;
+  posted_at: string | null;
+  created_at: string;
+  error_message?: string | null;
+  replies?: ProfileComment[];
+}
+
+export interface ProfileCommentsListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  data: ProfileComment[];
+}
+
+export interface CreateProfileCommentParams {
+  parent_id: string;
+  text: string;
+}
+
+export interface ListProfileCommentsParams {
+  placement_id?: string;
+  page?: number;
+  per_page?: number;
 }

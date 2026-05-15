@@ -10,7 +10,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
-const PACKAGE_VERSION = "1.7.0";
+const PACKAGE_VERSION = "1.8.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -49,6 +49,13 @@ interface PlatformOutcome {
   insights?: any;
 }
 
+interface MediaPlatformError {
+  platform: string;
+  status: string;
+  error: string;
+  error_details?: PlatformErrorDetails | null;
+}
+
 interface MediaAttachment {
   id: string;
   status: "pending" | "processed" | "failed";
@@ -56,6 +63,7 @@ interface MediaAttachment {
   content_type: string;
   source_url: string | null;
   url: string | null;
+  platforms?: MediaPlatformError[];
 }
 
 interface Post {
@@ -701,6 +709,65 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(response, null, 2);
   }
 
+  private async handleProfileCommentsList(args: any): Promise<string> {
+    this.getApiKey();
+    const { profile_id } = args;
+    if (!profile_id) throw new Error("profile_id is required");
+
+    const params = new URLSearchParams();
+    if (args.placement_id) params.append("placement_id", String(args.placement_id));
+    if (args.page !== undefined) params.append("page", String(args.page));
+    if (args.per_page !== undefined) params.append("per_page", String(args.per_page));
+    const qs = params.toString();
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/profiles/${profile_id}/comments${qs ? `?${qs}` : ""}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleProfileCommentsGet(args: any): Promise<string> {
+    this.getApiKey();
+    const { profile_id, comment_id } = args;
+    if (!profile_id) throw new Error("profile_id is required");
+    if (!comment_id) throw new Error("comment_id is required");
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/profiles/${profile_id}/comments/${encodeURIComponent(comment_id)}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleProfileCommentsCreate(args: any): Promise<string> {
+    this.getApiKey();
+    const { profile_id, parent_id, text } = args;
+    if (!profile_id) throw new Error("profile_id is required");
+    if (!parent_id) throw new Error("parent_id is required");
+    if (!text) throw new Error("text is required");
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/profiles/${profile_id}/comments`,
+      { parent_id, text }
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleProfileCommentsDelete(args: any): Promise<string> {
+    this.getApiKey();
+    const { profile_id, comment_id } = args;
+    if (!profile_id) throw new Error("profile_id is required");
+    if (!comment_id) throw new Error("comment_id is required");
+
+    const response = await this.apiRequest<any>(
+      "DELETE",
+      `/profiles/${profile_id}/comments/${encodeURIComponent(comment_id)}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
   // ─── MCP JSON-RPC Handler ──────────────────────────────────────────
 
   private async handleToolCall(name: string, args: any): Promise<string> {
@@ -757,6 +824,14 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleCommentsLike(args);
       case "comments_unlike":
         return await this.handleCommentsUnlike(args);
+      case "profile_comments_list":
+        return await this.handleProfileCommentsList(args);
+      case "profile_comments_get":
+        return await this.handleProfileCommentsGet(args);
+      case "profile_comments_create":
+        return await this.handleProfileCommentsCreate(args);
+      case "profile_comments_delete":
+        return await this.handleProfileCommentsDelete(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -776,7 +851,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           result: {
             protocolVersion: "2025-03-26",
             capabilities: { tools: {} },
-            serverInfo: { name: "postproxy-mcp", version: "1.7.0" },
+            serverInfo: { name: "postproxy-mcp", version: "1.8.0" },
           },
           id,
         };
@@ -932,7 +1007,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return Response.json(
       {
         name: "postproxy-mcp",
-        version: "1.7.0",
+        version: "1.8.0",
         description: "MCP server for PostProxy - Social Media Management",
         tools: TOOL_DEFINITIONS.map((t) => t.name),
       },
