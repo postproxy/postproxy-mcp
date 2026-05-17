@@ -7,8 +7,11 @@ import { getApiKey } from "../auth/credentials.js";
 import { createError, ErrorCodes } from "../utils/errors.js";
 import { logError, logToolCall } from "../utils/logger.js";
 
-export async function handleProfilesList(client: PostProxyClient) {
-  logToolCall("profiles.list", {});
+export async function handleProfilesList(
+  client: PostProxyClient,
+  args: { profile_group_id?: string } = {}
+) {
+  logToolCall("profiles.list", args);
 
   // Check API key
   const apiKey = getApiKey();
@@ -17,10 +20,6 @@ export async function handleProfilesList(client: PostProxyClient) {
   }
 
   try {
-    // Get all profile groups
-    const profileGroups = await client.getProfileGroups();
-
-    // Get profiles for each group
     const allProfiles: Array<{
       id: string;
       name: string;
@@ -28,9 +27,14 @@ export async function handleProfilesList(client: PostProxyClient) {
       profile_group_id: string;
     }> = [];
 
-    for (const group of profileGroups) {
+    // If a specific group is requested, only fetch that group's profiles.
+    const groupIds: string[] = args.profile_group_id
+      ? [args.profile_group_id]
+      : (await client.getProfileGroups()).map((g) => g.id);
+
+    for (const groupId of groupIds) {
       try {
-        const profiles = await client.getProfiles(group.id);
+        const profiles = await client.getProfiles(groupId);
         for (const profile of profiles) {
           allProfiles.push({
             id: profile.id, // Already a string
@@ -40,7 +44,7 @@ export async function handleProfilesList(client: PostProxyClient) {
           });
         }
       } catch (error) {
-        logError(error as Error, `profiles.list (group ${group.id})`);
+        logError(error as Error, `profiles.list (group ${groupId})`);
         // Continue with other groups even if one fails
       }
     }

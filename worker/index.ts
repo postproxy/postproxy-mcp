@@ -10,7 +10,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
-const PACKAGE_VERSION = "1.8.0";
+const PACKAGE_VERSION = "1.8.1";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -148,13 +148,16 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return [];
   }
 
-  private async getAllProfiles(): Promise<Profile[]> {
-    const groupsResponse = await this.apiRequest<any>("GET", "/profile_groups/");
-    const groups = this.extractArray<ProfileGroup>(groupsResponse);
+  private async getAllProfiles(groupId?: string): Promise<Profile[]> {
+    const groupIds: string[] = groupId
+      ? [groupId]
+      : this.extractArray<ProfileGroup>(
+          await this.apiRequest<any>("GET", "/profile_groups/")
+        ).map((g) => g.id);
 
     const allProfiles: Profile[] = [];
-    for (const group of groups) {
-      const profilesResponse = await this.apiRequest<any>("GET", `/profiles?group_id=${group.id}`);
+    for (const id of groupIds) {
+      const profilesResponse = await this.apiRequest<any>("GET", `/profiles?group_id=${id}`);
       const profiles = this.extractArray<Profile>(profilesResponse);
       allProfiles.push(...profiles);
     }
@@ -238,9 +241,9 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(result, null, 2);
   }
 
-  private async handleProfilesList(): Promise<string> {
+  private async handleProfilesList(args: any = {}): Promise<string> {
     this.getApiKey();
-    const profiles = await this.getAllProfiles();
+    const profiles = await this.getAllProfiles(args?.profile_group_id);
     const targets = profiles.map((profile) => ({
       id: profile.id,
       name: profile.name,
@@ -775,7 +778,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       case "auth_status":
         return await this.handleAuthStatus();
       case "profiles_list":
-        return await this.handleProfilesList();
+        return await this.handleProfilesList(args);
       case "profiles_placements":
         return await this.handleProfilesPlacements(args);
       case "profiles_stats":
@@ -851,7 +854,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           result: {
             protocolVersion: "2025-03-26",
             capabilities: { tools: {} },
-            serverInfo: { name: "postproxy-mcp", version: "1.8.0" },
+            serverInfo: { name: "postproxy-mcp", version: "1.8.1" },
           },
           id,
         };
@@ -1007,7 +1010,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return Response.json(
       {
         name: "postproxy-mcp",
-        version: "1.8.0",
+        version: "1.8.1",
         description: "MCP server for PostProxy - Social Media Management",
         tools: TOOL_DEFINITIONS.map((t) => t.name),
       },

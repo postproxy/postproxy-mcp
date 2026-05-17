@@ -65,7 +65,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "profiles_list",
-    description: "List all available social media profiles for posting",
+    description: "List all available social media profiles for posting. Optionally filter by profile_group_id.",
     annotations: {
       title: "List Profiles",
       readOnlyHint: true,
@@ -74,7 +74,12 @@ export const TOOL_DEFINITIONS = [
     },
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        profile_group_id: {
+          type: "string",
+          description: "Optional profile group ID (hashid). If provided, only profiles in this group are returned.",
+        },
+      },
     },
   },
   {
@@ -1034,7 +1039,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.8.0",
+      version: "1.8.1",
     },
     {
       capabilities: {
@@ -1061,7 +1066,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
         case "auth_status":
           return await handleAuthStatus(client);
         case "profiles_list":
-          return await handleProfilesList(client);
+          return await handleProfilesList(client, args as any);
         case "post_publish":
           return await handlePostPublish(client, args as any);
         case "post_status":
