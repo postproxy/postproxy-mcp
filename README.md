@@ -485,6 +485,8 @@ List comments on a published post. Returns paginated top-level comments with nes
 }
 ```
 
+Comment objects may also include an `attachments` array (media on the comment — `image`, `video`, `audio`, `gif`, `external`, `file`), each with `id`, `type`, `url`, `status`, and `external_id`. Populated for Facebook, Threads, and Bluesky; Instagram, YouTube, and LinkedIn comments are text-only. The array is empty when there is no media.
+
 #### `comments_get`
 
 Get a single comment with its replies.
@@ -570,6 +572,118 @@ Remove a like from a comment. Currently only supported on Facebook.
 | Delete | Yes | Yes | No | Yes | Yes |
 | Hide/Unhide | Yes | Yes | Yes | No | No |
 | Like/Unlike | No | Yes | No | No | No |
+
+### Direct Messages
+
+1:1 messaging (chats and messages) on DM-capable profiles. Supported on Facebook (Messenger), Instagram (DMs), Telegram (Bot DMs), and Bluesky. Outbound sends are processed asynchronously (returned with `status: "pending"`). Meta's 24h messaging window applies to Facebook/Instagram — pass `tag: "HUMAN_AGENT"` to send outside it; Telegram and Bluesky have no window.
+
+#### `dm_chats_list`
+
+List chats for a profile, ordered by most recent activity.
+
+**Parameters**:
+- `profile_id` (string, required): Profile ID (Facebook, Instagram, Telegram, or Bluesky)
+- `page` (number, optional): Page number, zero-indexed (default: 0)
+- `per_page` (number, optional): Items per page (default: 20)
+- `before` / `after` (string, optional): ISO 8601 timestamp filters on `last_message_at`
+
+#### `dm_chat_create`
+
+Find or create a chat for a participant (idempotent — returns the existing chat if one exists). Use before messaging a participant the profile hasn't messaged yet.
+
+**Parameters**:
+- `profile_id` (string, required): Profile ID
+- `participant_external_id` (string, required): Platform participant ID (IG-scoped user ID, Facebook PSID, Telegram user id, or Bluesky DID)
+- `participant_username` (string, optional)
+- `participant_name` (string, optional)
+
+#### `dm_chat_get`
+
+Get a single chat by Postproxy ID or platform `external_conversation_id`.
+
+**Parameters**:
+- `chat_id` (string, required): Chat ID or external conversation ID
+
+#### `dm_messages_list`
+
+List messages in a chat, most recent first.
+
+**Parameters**:
+- `chat_id` (string, required): Chat ID or external conversation ID
+- `page` (number, optional): Page number, zero-indexed (default: 0)
+- `per_page` (number, optional): Items per page (default: 20)
+- `direction` (string, optional): `inbound` or `outbound`
+- `status` (string, optional): Filter by message status
+
+#### `dm_message_send`
+
+Send an outbound message. Provide **either** `body` (text) **or** `media` (a single attachment), not both.
+
+**Parameters**:
+- `chat_id` (string, required): Chat ID or external conversation ID
+- `body` (string, optional): Message text (required when `media` is empty)
+- `media` (string[], optional): Up to one attachment as a URL or local file path. Not supported on Bluesky. (The remote/Worker MCP accepts URLs only.)
+- `tag` (string, optional): `HUMAN_AGENT` to send outside the 24h window (Facebook/Instagram only)
+- `reply_to_external_id` (string, optional): **Telegram only** — message_id to thread under
+- `reply_markup` (object, optional): **Telegram only** — inline/reply keyboard payload
+
+#### `dm_message_get`
+
+Get a single message by Postproxy ID or platform `external_id`.
+
+**Parameters**:
+- `message_id` (string, required): Message ID or external ID
+
+#### `dm_message_edit`
+
+Edit a previously-sent outbound message. **Telegram only.** Provide `body` and/or `reply_markup` (pass `{}` to clear the keyboard); at least one is required.
+
+**Parameters**:
+- `message_id` (string, required): Message ID or external ID
+- `body` (string, optional): New text/caption
+- `reply_markup` (object, optional): New keyboard (or `{}` to remove)
+
+#### `dm_message_react` / `dm_message_unreact`
+
+Add or remove your business account's reaction on a message. **Facebook Messenger and Instagram Direct only.**
+
+**Parameters** (`dm_message_react`):
+- `message_id` (string, required): Message ID or external ID
+- `reaction` (string, optional): Named reaction (default `love`)
+- `emoji` (string, optional): Unicode emoji
+
+**Parameters** (`dm_message_unreact`):
+- `message_id` (string, required)
+
+#### `dm_chat_archive` / `dm_chat_unarchive`
+
+Archive (mute) or unarchive (unmute) a chat. **Bluesky only.** Returns the chat with `archived` set.
+
+**Parameters**:
+- `chat_id` (string, required): Chat ID or external conversation ID
+
+#### `dm_comment_private_reply`
+
+Send a DM to the author of a comment, in reply to that comment (Meta "Private Replies"). Bypasses the 24h window (comments up to 7 days old) and creates/reuses a chat automatically. One private reply per comment, ever. **Instagram and Facebook only.**
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID or external ID
+- `profile_id` (string, required): Profile ID (Instagram or Facebook)
+- `text` (string, required): DM text
+
+#### Platform Support
+
+| Action | Facebook | Instagram | Telegram | Bluesky |
+|--------|----------|-----------|----------|---------|
+| List/Send/Get | Yes | Yes | Yes | Yes |
+| Media attachment | Yes | Yes | Yes | No |
+| Edit message | No | No | Yes | No |
+| React/Unreact | Yes | Yes | No | No |
+| Archive/Unarchive | No | No | No | Yes |
+| Private reply to comment | Yes | Yes | No | No |
+| `tag` (24h window) | Yes | Yes | n/a | n/a |
+| `reply_to_external_id` / `reply_markup` | No | No | Yes | No |
 
 ### History
 
@@ -1022,6 +1136,20 @@ Reply to comment cmt_abc123 on post abc123 with "Thanks for the feedback!" using
 
 ```
 Hide comment cmt_abc123 on post abc123 for profile prof456
+```
+
+### Direct Messages
+
+```
+List the DM chats for my Instagram profile prof456
+```
+
+```
+Reply "Yes, we ship worldwide!" in chat chat_xyz789
+```
+
+```
+Send a DM to the author of comment cmt_abc123 on post abc123 from profile prof456 saying "DM-ing you the details"
 ```
 
 ### View History

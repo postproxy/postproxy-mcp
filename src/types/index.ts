@@ -396,6 +396,19 @@ export interface Comment {
   posted_at: string | null;
   created_at: string;
   replies?: Comment[];
+  attachments?: CommentAttachment[];
+}
+
+/**
+ * Media attached to a synced comment (Facebook, Threads, Bluesky).
+ * Instagram/YouTube/LinkedIn comments are text-only.
+ */
+export interface CommentAttachment {
+  id: string;
+  type: "image" | "video" | "audio" | "gif" | "external" | "file";
+  url: string | null;
+  status: string;
+  external_id?: string | null;
 }
 
 /**
@@ -459,4 +472,126 @@ export interface ListProfileCommentsParams {
   placement_id?: string;
   page?: number;
   per_page?: number;
+}
+
+// ─── Direct Messages (chats & messages) ──────────────────────────────
+
+/**
+ * A reaction entry on a DM message.
+ */
+export interface DMReaction {
+  sender_external_id: string;
+  emoji: string;
+  reaction: string;
+  at: string;
+}
+
+/**
+ * Media attachment on a DM message (inbound or outbound).
+ */
+export interface DMAttachment {
+  id: string;
+  type: "image" | "video" | "audio" | "sticker" | "file";
+  url: string | null;
+  status: "pending" | "processed" | "failed";
+  external_id?: string | null;
+}
+
+/**
+ * A chat (1:1 conversation) on a DM-capable profile.
+ */
+export interface Chat {
+  id: string;
+  profile_id: string;
+  platform: string; // facebook | instagram | telegram | bluesky
+  participant_external_id: string;
+  participant_username: string | null;
+  participant_name: string | null;
+  participant_avatar_url: string | null;
+  external_conversation_id: string | null;
+  last_inbound_at: string | null;
+  last_outbound_at: string | null;
+  last_message_at: string | null;
+  metadata: Record<string, any> | null;
+  archived?: boolean; // present on Bluesky archive/unarchive responses
+  created_at: string;
+}
+
+/**
+ * A direct message within a chat.
+ */
+export interface DirectMessage {
+  id: string;
+  chat_id: string;
+  external_id: string | null;
+  direction: "inbound" | "outbound";
+  body: string;
+  status: "pending" | "published" | "failed_waiting_for_retry" | "failed" | "received";
+  tag: string | null;
+  external_comment_id?: string | null;
+  error_message: string | null;
+  platform_data: Record<string, any> | null;
+  external_posted_at: string | null;
+  external_delivered_at?: string | null;
+  external_read_at?: string | null;
+  external_edited_at?: string | null;
+  reply_to_external_id?: string | null;
+  reply_markup?: Record<string, any> | null;
+  external_deleted_at?: string | null;
+  reactions?: DMReaction[];
+  attachments?: DMAttachment[];
+  is_unsupported?: boolean;
+  created_at: string;
+}
+
+export interface ChatsListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  data: Chat[];
+}
+
+export interface MessagesListResponse {
+  total: number;
+  page: number;
+  per_page: number;
+  data: DirectMessage[];
+}
+
+export interface ListChatsParams {
+  page?: number;
+  per_page?: number;
+  before?: string;
+  after?: string;
+}
+
+export interface CreateChatParams {
+  participant_external_id: string;
+  participant_username?: string;
+  participant_name?: string;
+}
+
+export interface ListMessagesParams {
+  page?: number;
+  per_page?: number;
+  direction?: "inbound" | "outbound";
+  status?: string;
+}
+
+export interface SendMessageParams {
+  body?: string;
+  media?: string[]; // max 1; URL or local file path
+  tag?: "HUMAN_AGENT";
+  reply_to_external_id?: string;
+  reply_markup?: Record<string, any>;
+}
+
+export interface EditMessageParams {
+  body?: string;
+  reply_markup?: Record<string, any>;
+}
+
+export interface ReactMessageParams {
+  reaction?: string;
+  emoji?: string;
 }

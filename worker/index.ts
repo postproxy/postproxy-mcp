@@ -10,7 +10,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
-const PACKAGE_VERSION = "1.8.1";
+const PACKAGE_VERSION = "1.9.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -771,6 +771,204 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(response, null, 2);
   }
 
+  // ─── Direct Messages ───────────────────────────────────────────────
+
+  private async handleDmChatsList(args: any): Promise<string> {
+    this.getApiKey();
+    const { profile_id } = args;
+    if (!profile_id) throw new Error("profile_id is required");
+
+    const params = new URLSearchParams();
+    if (args.page !== undefined) params.append("page", String(args.page));
+    if (args.per_page !== undefined) params.append("per_page", String(args.per_page));
+    if (args.before) params.append("before", String(args.before));
+    if (args.after) params.append("after", String(args.after));
+    const qs = params.toString();
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/profiles/${profile_id}/chats${qs ? `?${qs}` : ""}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmChatCreate(args: any): Promise<string> {
+    this.getApiKey();
+    const { profile_id, participant_external_id, participant_username, participant_name } = args;
+    if (!profile_id) throw new Error("profile_id is required");
+    if (!participant_external_id) throw new Error("participant_external_id is required");
+
+    const body: any = { participant_external_id };
+    if (participant_username) body.participant_username = participant_username;
+    if (participant_name) body.participant_name = participant_name;
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/profiles/${profile_id}/chats`,
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmChatGet(args: any): Promise<string> {
+    this.getApiKey();
+    const { chat_id } = args;
+    if (!chat_id) throw new Error("chat_id is required");
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/chats/${encodeURIComponent(chat_id)}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmMessagesList(args: any): Promise<string> {
+    this.getApiKey();
+    const { chat_id } = args;
+    if (!chat_id) throw new Error("chat_id is required");
+
+    const params = new URLSearchParams();
+    if (args.page !== undefined) params.append("page", String(args.page));
+    if (args.per_page !== undefined) params.append("per_page", String(args.per_page));
+    if (args.direction) params.append("direction", String(args.direction));
+    if (args.status) params.append("status", String(args.status));
+    const qs = params.toString();
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/chats/${encodeURIComponent(chat_id)}/messages${qs ? `?${qs}` : ""}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmMessageSend(args: any): Promise<string> {
+    this.getApiKey();
+    const { chat_id } = args;
+    if (!chat_id) throw new Error("chat_id is required");
+
+    const hasBody = typeof args.body === "string" && args.body.length > 0;
+    const hasMedia = Array.isArray(args.media) && args.media.length > 0;
+    if (!hasBody && !hasMedia) throw new Error("body or media is required");
+    if (Array.isArray(args.media) && args.media.length > 1) {
+      throw new Error("Direct messages support one attachment per send");
+    }
+
+    const body: any = {};
+    if (args.body !== undefined) body.body = args.body;
+    if (hasMedia) body.media = args.media; // URL/base64 only — Worker has no filesystem
+    if (args.tag) body.tag = args.tag;
+    if (args.reply_to_external_id) body.reply_to_external_id = args.reply_to_external_id;
+    if (args.reply_markup) body.reply_markup = args.reply_markup;
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/chats/${encodeURIComponent(chat_id)}/messages`,
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmMessageGet(args: any): Promise<string> {
+    this.getApiKey();
+    const { message_id } = args;
+    if (!message_id) throw new Error("message_id is required");
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/messages/${encodeURIComponent(message_id)}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmMessageEdit(args: any): Promise<string> {
+    this.getApiKey();
+    const { message_id } = args;
+    if (!message_id) throw new Error("message_id is required");
+    if (args.body === undefined && args.reply_markup === undefined) {
+      throw new Error("body or reply_markup is required");
+    }
+
+    const body: any = {};
+    if (args.body !== undefined) body.body = args.body;
+    if (args.reply_markup !== undefined) body.reply_markup = args.reply_markup;
+
+    const response = await this.apiRequest<any>(
+      "PATCH",
+      `/messages/${encodeURIComponent(message_id)}`,
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmMessageReact(args: any): Promise<string> {
+    this.getApiKey();
+    const { message_id } = args;
+    if (!message_id) throw new Error("message_id is required");
+
+    const body: any = {};
+    if (args.reaction) body.reaction = args.reaction;
+    if (args.emoji) body.emoji = args.emoji;
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/messages/${encodeURIComponent(message_id)}/react`,
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmMessageUnreact(args: any): Promise<string> {
+    this.getApiKey();
+    const { message_id } = args;
+    if (!message_id) throw new Error("message_id is required");
+
+    const response = await this.apiRequest<any>(
+      "DELETE",
+      `/messages/${encodeURIComponent(message_id)}/unreact`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmChatArchive(args: any): Promise<string> {
+    this.getApiKey();
+    const { chat_id } = args;
+    if (!chat_id) throw new Error("chat_id is required");
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/chats/${encodeURIComponent(chat_id)}/archive`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmChatUnarchive(args: any): Promise<string> {
+    this.getApiKey();
+    const { chat_id } = args;
+    if (!chat_id) throw new Error("chat_id is required");
+
+    const response = await this.apiRequest<any>(
+      "DELETE",
+      `/chats/${encodeURIComponent(chat_id)}/archive`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmCommentPrivateReply(args: any): Promise<string> {
+    this.getApiKey();
+    const { post_id, comment_id, profile_id, text } = args;
+    if (!post_id) throw new Error("post_id is required");
+    if (!comment_id) throw new Error("comment_id is required");
+    if (!profile_id) throw new Error("profile_id is required");
+    if (!text) throw new Error("text is required");
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/posts/${post_id}/comments/${encodeURIComponent(comment_id)}/private_reply?profile_id=${profile_id}`,
+      { text }
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
   // ─── MCP JSON-RPC Handler ──────────────────────────────────────────
 
   private async handleToolCall(name: string, args: any): Promise<string> {
@@ -835,6 +1033,30 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleProfileCommentsCreate(args);
       case "profile_comments_delete":
         return await this.handleProfileCommentsDelete(args);
+      case "dm_chats_list":
+        return await this.handleDmChatsList(args);
+      case "dm_chat_create":
+        return await this.handleDmChatCreate(args);
+      case "dm_chat_get":
+        return await this.handleDmChatGet(args);
+      case "dm_messages_list":
+        return await this.handleDmMessagesList(args);
+      case "dm_message_send":
+        return await this.handleDmMessageSend(args);
+      case "dm_message_get":
+        return await this.handleDmMessageGet(args);
+      case "dm_message_edit":
+        return await this.handleDmMessageEdit(args);
+      case "dm_message_react":
+        return await this.handleDmMessageReact(args);
+      case "dm_message_unreact":
+        return await this.handleDmMessageUnreact(args);
+      case "dm_chat_archive":
+        return await this.handleDmChatArchive(args);
+      case "dm_chat_unarchive":
+        return await this.handleDmChatUnarchive(args);
+      case "dm_comment_private_reply":
+        return await this.handleDmCommentPrivateReply(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -854,7 +1076,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           result: {
             protocolVersion: "2025-03-26",
             capabilities: { tools: {} },
-            serverInfo: { name: "postproxy-mcp", version: "1.8.1" },
+            serverInfo: { name: "postproxy-mcp", version: "1.9.0" },
           },
           id,
         };
@@ -1010,7 +1232,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return Response.json(
       {
         name: "postproxy-mcp",
-        version: "1.8.1",
+        version: "1.9.0",
         description: "MCP server for PostProxy - Social Media Management",
         tools: TOOL_DEFINITIONS.map((t) => t.name),
       },

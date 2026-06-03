@@ -27,12 +27,22 @@ import type {
   ProfileCommentsListResponse,
   CreateProfileCommentParams,
   ListProfileCommentsParams,
+  Chat,
+  DirectMessage,
+  ChatsListResponse,
+  MessagesListResponse,
+  ListChatsParams,
+  CreateChatParams,
+  ListMessagesParams,
+  SendMessageParams,
+  EditMessageParams,
+  ReactMessageParams,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.8.1";
+const PACKAGE_VERSION = "1.9.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1020,6 +1030,252 @@ export class PostProxyClient {
     return this.request<CommentActionResponse>(
       "DELETE",
       `/profiles/${profileId}/comments/${encodeURIComponent(commentId)}`
+    );
+  }
+
+  // ─── Direct Messages: chats ────────────────────────────────────────
+
+  /**
+   * List chats for a DM-capable profile (ordered by last_message_at desc)
+   */
+  async listChats(profileId: string, params?: ListChatsParams): Promise<ChatsListResponse> {
+    const qs = new URLSearchParams();
+    if (params?.page !== undefined) qs.append("page", String(params.page));
+    if (params?.per_page !== undefined) qs.append("per_page", String(params.per_page));
+    if (params?.before) qs.append("before", params.before);
+    if (params?.after) qs.append("after", params.after);
+    const query = qs.toString();
+    return this.request<ChatsListResponse>(
+      "GET",
+      `/profiles/${profileId}/chats${query ? `?${query}` : ""}`
+    );
+  }
+
+  /**
+   * Find or create a chat by participant (idempotent)
+   */
+  async createChat(profileId: string, params: CreateChatParams): Promise<Chat> {
+    return this.request<Chat>("POST", `/profiles/${profileId}/chats`, params);
+  }
+
+  /**
+   * Get a single chat by postproxy ID or external_conversation_id
+   */
+  async getChat(chatId: string): Promise<Chat> {
+    return this.request<Chat>("GET", `/chats/${encodeURIComponent(chatId)}`);
+  }
+
+  /**
+   * Archive a chat (Bluesky only)
+   */
+  async archiveChat(chatId: string): Promise<Chat> {
+    return this.request<Chat>("POST", `/chats/${encodeURIComponent(chatId)}/archive`);
+  }
+
+  /**
+   * Unarchive a chat (Bluesky only)
+   */
+  async unarchiveChat(chatId: string): Promise<Chat> {
+    return this.request<Chat>("DELETE", `/chats/${encodeURIComponent(chatId)}/archive`);
+  }
+
+  // ─── Direct Messages: messages ─────────────────────────────────────
+
+  /**
+   * List messages in a chat (ordered most-recent first)
+   */
+  async listMessages(
+    chatId: string,
+    params?: ListMessagesParams
+  ): Promise<MessagesListResponse> {
+    const qs = new URLSearchParams();
+    if (params?.page !== undefined) qs.append("page", String(params.page));
+    if (params?.per_page !== undefined) qs.append("per_page", String(params.per_page));
+    if (params?.direction) qs.append("direction", params.direction);
+    if (params?.status) qs.append("status", params.status);
+    const query = qs.toString();
+    return this.request<MessagesListResponse>(
+      "GET",
+      `/chats/${encodeURIComponent(chatId)}/messages${query ? `?${query}` : ""}`
+    );
+  }
+
+  /**
+   * Send an outbound message. When media contains a local file path the send
+   * goes out as multipart; otherwise (text, or media URLs) it's a JSON request.
+   */
+  async sendMessage(chatId: string, params: SendMessageParams): Promise<DirectMessage> {
+    const mediaHasFiles =
+      !!(params.media && params.media.length > 0 && this.hasFilePaths(params.media));
+    if (mediaHasFiles) {
+      return this.sendMessageWithFiles(chatId, params);
+    }
+    const payload: any = {};
+    if (params.body !== undefined) payload.body = params.body;
+    if (params.media && params.media.length > 0) payload.media = params.media;
+    if (params.tag) payload.tag = params.tag;
+    if (params.reply_to_external_id) payload.reply_to_external_id = params.reply_to_external_id;
+    if (params.reply_markup) payload.reply_markup = params.reply_markup;
+    return this.request<DirectMessage>(
+      "POST",
+      `/chats/${encodeURIComponent(chatId)}/messages`,
+      payload
+    );
+  }
+
+  /**
+   * Send a message with a local-file attachment via multipart/form-data.
+   */
+  private async sendMessageWithFiles(
+    chatId: string,
+    params: SendMessageParams
+  ): Promise<DirectMessage> {
+    const url = `${this.baseUrl}/chats/${encodeURIComponent(chatId)}/messages`;
+    const formData = new FormData();
+
+    if (params.body !== undefined) formData.append("body", params.body);
+    if (params.media && params.media.length > 0) {
+      for (const mediaItem of params.media) {
+        if (isFilePath(mediaItem)) {
+          this.appendFileField(formData, "media[]", mediaItem);
+        } else {
+          formData.append("media[]", mediaItem);
+        }
+      }
+    }
+    if (params.tag) formData.append("tag", params.tag);
+    if (params.reply_to_external_id) {
+      formData.append("reply_to_external_id", params.reply_to_external_id);
+    }
+    if (params.reply_markup) {
+      formData.append("reply_markup", JSON.stringify(params.reply_markup));
+    }
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.apiKey}`,
+      "User-Agent": USER_AGENT,
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: formData,
+        signal: AbortSignal.timeout(60000), // 60 second timeout for file uploads
+      });
+
+      const requestId = response.headers.get("x-request-id");
+
+      if (!response.ok) {
+        let errorMessage = `API request failed with status ${response.status}`;
+        let errorDetails: any = { status: response.status, requestId };
+
+        try {
+          const errorBody = await response.json();
+          if (Array.isArray(errorBody.errors)) {
+            errorMessage = errorBody.errors.join("; ");
+            errorDetails = { ...errorDetails, errors: errorBody.errors };
+          } else if (errorBody.message) {
+            errorMessage = errorBody.message;
+            errorDetails = { ...errorDetails, ...errorBody };
+          } else if (errorBody.error) {
+            errorMessage = typeof errorBody.error === "string"
+              ? errorBody.error
+              : errorBody.message || errorMessage;
+            errorDetails = { ...errorDetails, ...errorBody };
+          }
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+
+        let errorCode: ErrorCode = ErrorCodes.API_ERROR;
+        if (response.status === 401) {
+          errorCode = ErrorCodes.AUTH_INVALID;
+        } else if (response.status === 404) {
+          errorCode = ErrorCodes.TARGET_NOT_FOUND;
+        } else if (response.status >= 400 && response.status < 500) {
+          errorCode = ErrorCodes.VALIDATION_ERROR;
+        }
+
+        logError(
+          createError(errorCode, errorMessage, errorDetails),
+          `API POST /chats/:id/messages (multipart)`
+        );
+        throw createError(errorCode, errorMessage, errorDetails);
+      }
+
+      const jsonResponse = await response.json();
+      return jsonResponse as DirectMessage;
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw createError(
+          ErrorCodes.API_ERROR,
+          "Request timeout - API did not respond within 60 seconds"
+        );
+      }
+      if (error instanceof Error && "code" in error) {
+        throw error;
+      }
+      logError(error as Error, `API POST /chats/:id/messages (multipart)`);
+      throw formatError(error as Error, ErrorCodes.API_ERROR, {
+        method: "POST",
+        path: `/chats/${chatId}/messages`,
+      });
+    }
+  }
+
+  /**
+   * Get a single message by postproxy ID or platform external_id
+   */
+  async getMessage(messageId: string): Promise<DirectMessage> {
+    return this.request<DirectMessage>("GET", `/messages/${encodeURIComponent(messageId)}`);
+  }
+
+  /**
+   * Edit an outbound message (Telegram only)
+   */
+  async editMessage(messageId: string, params: EditMessageParams): Promise<DirectMessage> {
+    return this.request<DirectMessage>(
+      "PATCH",
+      `/messages/${encodeURIComponent(messageId)}`,
+      params
+    );
+  }
+
+  /**
+   * React to a message (Facebook & Instagram only)
+   */
+  async reactMessage(messageId: string, params: ReactMessageParams): Promise<DirectMessage> {
+    return this.request<DirectMessage>(
+      "POST",
+      `/messages/${encodeURIComponent(messageId)}/react`,
+      params
+    );
+  }
+
+  /**
+   * Remove this account's reaction from a message
+   */
+  async unreactMessage(messageId: string): Promise<DirectMessage> {
+    return this.request<DirectMessage>(
+      "DELETE",
+      `/messages/${encodeURIComponent(messageId)}/unreact`
+    );
+  }
+
+  /**
+   * Send a DM in reply to a comment (Instagram & Facebook only)
+   */
+  async privateReplyToComment(
+    postId: string,
+    commentId: string,
+    profileId: string,
+    text: string
+  ): Promise<DirectMessage> {
+    return this.request<DirectMessage>(
+      "POST",
+      `/posts/${postId}/comments/${encodeURIComponent(commentId)}/private_reply?profile_id=${profileId}`,
+      { text }
     );
   }
 }

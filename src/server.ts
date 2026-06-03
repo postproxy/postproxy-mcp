@@ -41,6 +41,20 @@ import {
   handleProfileCommentsCreate,
   handleProfileCommentsDelete,
 } from "./tools/profile-comment.js";
+import {
+  handleDmChatsList,
+  handleDmChatCreate,
+  handleDmChatGet,
+  handleDmMessagesList,
+  handleDmMessageSend,
+  handleDmMessageGet,
+  handleDmMessageEdit,
+  handleDmMessageReact,
+  handleDmMessageUnreact,
+  handleDmChatArchive,
+  handleDmChatUnarchive,
+  handleDmCommentPrivateReply,
+} from "./tools/dm.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
 import { logToolCall } from "./utils/logger.js";
 
@@ -1033,13 +1047,362 @@ export const TOOL_DEFINITIONS = [
       required: ["profile_id", "comment_id"],
     },
   },
+  {
+    name: "dm_chats_list",
+    description: "List direct-message chats (conversations) for a DM-capable profile, ordered by most recent activity. Supported on Facebook (Messenger), Instagram, Telegram, and Bluesky.",
+    annotations: {
+      title: "List Chats",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid (Facebook, Instagram, Telegram, or Bluesky)",
+        },
+        page: {
+          type: "number",
+          description: "Page number (zero-indexed, default 0)",
+        },
+        per_page: {
+          type: "number",
+          description: "Items per page (default 20)",
+        },
+        before: {
+          type: "string",
+          description: "ISO 8601 timestamp — only chats with last_message_at before this",
+        },
+        after: {
+          type: "string",
+          description: "ISO 8601 timestamp — only chats with last_message_at after this",
+        },
+      },
+      required: ["profile_id"],
+    },
+  },
+  {
+    name: "dm_chat_create",
+    description: "Find or create a chat for a participant on a DM-capable profile (idempotent — returns the existing chat if one already exists). Use before sending a message to a participant the profile has not yet messaged.",
+    annotations: {
+      title: "Create or Find Chat",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: {
+          type: "string",
+          description: "Profile hashid",
+        },
+        participant_external_id: {
+          type: "string",
+          description: "Platform participant ID (Instagram-scoped user ID, Facebook PSID, Telegram user id, or Bluesky DID)",
+        },
+        participant_username: {
+          type: "string",
+          description: "Optional display username for the participant",
+        },
+        participant_name: {
+          type: "string",
+          description: "Optional display name for the participant",
+        },
+      },
+      required: ["profile_id", "participant_external_id"],
+    },
+  },
+  {
+    name: "dm_chat_get",
+    description: "Get a single chat by Postproxy hashid or by the platform's external_conversation_id.",
+    annotations: {
+      title: "Get Chat",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_messages_list",
+    description: "List messages in a chat, most recent first. Optionally filter by direction or status.",
+    annotations: {
+      title: "List Messages",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id",
+        },
+        page: {
+          type: "number",
+          description: "Page number (zero-indexed, default 0)",
+        },
+        per_page: {
+          type: "number",
+          description: "Items per page (default 20)",
+        },
+        direction: {
+          type: "string",
+          enum: ["inbound", "outbound"],
+          description: "Filter by direction",
+        },
+        status: {
+          type: "string",
+          description: "Filter by status (pending, published, failed_waiting_for_retry, failed, received)",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_message_send",
+    description: "Send an outbound direct message. Provide EITHER body (text) OR media (a single attachment), not both. The message is queued and delivered asynchronously (returns status: pending). Outside Meta's 24h messaging window, pass tag: HUMAN_AGENT (Facebook/Instagram only). reply_to_external_id and reply_markup are Telegram-only.",
+    annotations: {
+      title: "Send Message",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id",
+        },
+        body: {
+          type: "string",
+          description: "Message text. Required when media is empty (provide body OR media, not both).",
+        },
+        media: {
+          type: "array",
+          items: { type: "string" },
+          description: "Up to one media attachment as a URL or local file path (absolute /path/to/file.jpg, relative ./image.png, or ~/Pictures/photo.jpg). Max 1 attachment. Not supported on Bluesky.",
+        },
+        tag: {
+          type: "string",
+          enum: ["HUMAN_AGENT"],
+          description: "Message tag for sending outside the 24h window. Facebook/Instagram only — ignored on Telegram and Bluesky.",
+        },
+        reply_to_external_id: {
+          type: "string",
+          description: "Telegram only. Platform message_id of the message to thread under.",
+        },
+        reply_markup: {
+          type: "object",
+          additionalProperties: true,
+          description: "Telegram only. reply_markup payload — inline keyboard, custom reply keyboard, force-reply, or remove-keyboard.",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_message_get",
+    description: "Get a single message by Postproxy hashid or by the platform's external_id.",
+    annotations: {
+      title: "Get Message",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        message_id: {
+          type: "string",
+          description: "Message hashid OR external_id",
+        },
+      },
+      required: ["message_id"],
+    },
+  },
+  {
+    name: "dm_message_edit",
+    description: "Edit a previously-sent outbound message on the platform. Telegram only — Facebook and Instagram do not expose outbound edits. Provide body (new text/caption) and/or reply_markup (pass {} to clear the keyboard); at least one is required.",
+    annotations: {
+      title: "Edit Message",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        message_id: {
+          type: "string",
+          description: "Message hashid OR external_id",
+        },
+        body: {
+          type: "string",
+          description: "New message text (or new caption for media messages).",
+        },
+        reply_markup: {
+          type: "object",
+          additionalProperties: true,
+          description: "New inline keyboard / reply_markup. Pass an empty object {} to remove the existing keyboard.",
+        },
+      },
+      required: ["message_id"],
+    },
+  },
+  {
+    name: "dm_message_react",
+    description: "Add a reaction from your business account to a message. Facebook Messenger and Instagram Direct only (not Telegram or Bluesky). A second react replaces the previous one.",
+    annotations: {
+      title: "React to Message",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        message_id: {
+          type: "string",
+          description: "Message hashid OR external_id",
+        },
+        reaction: {
+          type: "string",
+          description: "Named reaction, defaults to 'love'. On Instagram only 'love' is accepted; on Facebook Messenger common names (love, like, dislike, smile, wow, sad, angry) are auto-translated to emoji.",
+        },
+        emoji: {
+          type: "string",
+          description: "Unicode emoji. Forwarded to Instagram; on Facebook Messenger it overrides 'reaction' as the literal value sent.",
+        },
+      },
+      required: ["message_id"],
+    },
+  },
+  {
+    name: "dm_message_unreact",
+    description: "Remove your business account's reaction from a message. Facebook Messenger and Instagram Direct only.",
+    annotations: {
+      title: "Remove Reaction",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        message_id: {
+          type: "string",
+          description: "Message hashid OR external_id",
+        },
+      },
+      required: ["message_id"],
+    },
+  },
+  {
+    name: "dm_chat_archive",
+    description: "Archive (mute) a chat. Bluesky only — calls Bluesky's muteConvo. Returns the chat with archived: true.",
+    annotations: {
+      title: "Archive Chat",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_chat_unarchive",
+    description: "Unarchive (unmute) a chat. Bluesky only — calls Bluesky's unmuteConvo. Returns the chat with archived: false.",
+    annotations: {
+      title: "Unarchive Chat",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_comment_private_reply",
+    description: "Send a DM to the author of a comment, in reply to that comment (Meta 'Private Replies'). Bypasses the 24h window (comments up to 7 days old) and creates/reuses a chat automatically. One private reply per comment, ever. Instagram and Facebook (Page comments) only.",
+    annotations: {
+      title: "Private Reply to Comment",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        post_id: {
+          type: "string",
+          description: "Post hashid",
+        },
+        comment_id: {
+          type: "string",
+          description: "Comment hashid OR external ID",
+        },
+        profile_id: {
+          type: "string",
+          description: "Profile hashid (Instagram or Facebook only)",
+        },
+        text: {
+          type: "string",
+          description: "DM text",
+        },
+      },
+      required: ["post_id", "comment_id", "profile_id", "text"],
+    },
+  },
 ] as const;
 
 export async function createMCPServer(client: PostProxyClient): Promise<Server> {
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.8.1",
+      version: "1.9.0",
     },
     {
       capabilities: {
@@ -1123,6 +1486,30 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleProfileCommentsCreate(client, args as any);
         case "profile_comments_delete":
           return await handleProfileCommentsDelete(client, args as any);
+        case "dm_chats_list":
+          return await handleDmChatsList(client, args as any);
+        case "dm_chat_create":
+          return await handleDmChatCreate(client, args as any);
+        case "dm_chat_get":
+          return await handleDmChatGet(client, args as any);
+        case "dm_messages_list":
+          return await handleDmMessagesList(client, args as any);
+        case "dm_message_send":
+          return await handleDmMessageSend(client, args as any);
+        case "dm_message_get":
+          return await handleDmMessageGet(client, args as any);
+        case "dm_message_edit":
+          return await handleDmMessageEdit(client, args as any);
+        case "dm_message_react":
+          return await handleDmMessageReact(client, args as any);
+        case "dm_message_unreact":
+          return await handleDmMessageUnreact(client, args as any);
+        case "dm_chat_archive":
+          return await handleDmChatArchive(client, args as any);
+        case "dm_chat_unarchive":
+          return await handleDmChatUnarchive(client, args as any);
+        case "dm_comment_private_reply":
+          return await handleDmCommentPrivateReply(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
       }
