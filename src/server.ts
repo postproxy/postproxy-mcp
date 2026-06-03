@@ -6,7 +6,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { PostProxyClient } from "./api/client.js";
 import { handleAuthStatus } from "./tools/auth.js";
-import { handleProfilesList, handleProfilesPlacements, handleProfilesStats } from "./tools/profiles.js";
+import { handleProfilesList, handleProfileGroupsList, handleProfilesPlacements, handleProfilesStats } from "./tools/profiles.js";
 import {
   handlePostPublish,
   handlePostStatus,
@@ -70,6 +70,21 @@ export const TOOL_DEFINITIONS = [
       title: "Check Auth Status",
       readOnlyHint: true,
       destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "profile_groups_list",
+    description: "List all profile groups accessible with your API key. Profile groups are organizational containers (e.g. per brand or client) that hold related social media profiles. Use the returned group `id` to filter profiles_list by profile_group_id.",
+    annotations: {
+      title: "List Profile Groups",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
       openWorldHint: false,
     },
     inputSchema: {
@@ -1430,6 +1445,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleAuthStatus(client);
         case "profiles_list":
           return await handleProfilesList(client, args as any);
+        case "profile_groups_list":
+          return await handleProfileGroupsList(client);
         case "post_publish":
           return await handlePostPublish(client, args as any);
         case "post_status":

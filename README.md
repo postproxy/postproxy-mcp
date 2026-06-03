@@ -74,11 +74,31 @@ Check authentication status, API configuration, and workspace information.
 
 ### Profile Management
 
+#### `profile_groups_list`
+
+List all profile groups accessible with your API key. Profile groups are organizational containers (e.g. per brand or client) that hold related profiles. Use a group's `id` to filter `profiles_list` by `profile_group_id`.
+
+**Parameters**: None
+
+**Returns**:
+```json
+{
+  "profile_groups": [
+    {
+      "id": "grp123abc",
+      "name": "Main Brand",
+      "profiles_count": 4
+    }
+  ]
+}
+```
+
 #### `profiles_list`
 
 List all available social media profiles for posting.
 
-**Parameters**: None
+**Parameters**:
+- `profile_group_id` (string, optional): If provided, only profiles in this group are returned (use `profile_groups_list` to find group IDs)
 
 **Returns**:
 ```json

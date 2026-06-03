@@ -253,6 +253,13 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify({ targets }, null, 2);
   }
 
+  private async handleProfileGroupsList(): Promise<string> {
+    this.getApiKey();
+    const response = await this.apiRequest<any>("GET", "/profile_groups/");
+    const profileGroups = this.extractArray<ProfileGroup>(response);
+    return JSON.stringify({ profile_groups: profileGroups }, null, 2);
+  }
+
   private async handlePostPublish(args: any): Promise<string> {
     this.getApiKey();
 
@@ -977,6 +984,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleAuthStatus();
       case "profiles_list":
         return await this.handleProfilesList(args);
+      case "profile_groups_list":
+        return await this.handleProfileGroupsList();
       case "profiles_placements":
         return await this.handleProfilesPlacements(args);
       case "profiles_stats":

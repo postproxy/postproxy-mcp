@@ -72,6 +72,34 @@ export async function handleProfilesList(
   }
 }
 
+export async function handleProfileGroupsList(client: PostProxyClient) {
+  logToolCall("profile_groups.list", {});
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw createError(ErrorCodes.AUTH_MISSING, "API key is not configured");
+  }
+
+  try {
+    const profileGroups = await client.getProfileGroups();
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ profile_groups: profileGroups }, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "profile_groups.list");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to retrieve profile groups: ${(error as Error).message}`
+    );
+  }
+}
+
 export async function handleProfilesPlacements(
   client: PostProxyClient,
   args: { profile_id: string }
