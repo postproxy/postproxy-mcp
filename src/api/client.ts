@@ -484,7 +484,7 @@ export class PostProxyClient {
    */
   async getProfiles(groupId?: string | number): Promise<Profile[]> {
     const path = groupId
-      ? `/profiles?group_id=${groupId}`
+      ? `/profiles?profile_group_id=${encodeURIComponent(String(groupId))}`
       : "/profiles";
     const response = await this.request<any>("GET", path);
     return this.extractArray<Profile>(response);

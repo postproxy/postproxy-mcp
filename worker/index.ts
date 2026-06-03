@@ -157,7 +157,10 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
     const allProfiles: Profile[] = [];
     for (const id of groupIds) {
-      const profilesResponse = await this.apiRequest<any>("GET", `/profiles?group_id=${id}`);
+      const profilesResponse = await this.apiRequest<any>(
+        "GET",
+        `/profiles?profile_group_id=${encodeURIComponent(id)}`
+      );
       const profiles = this.extractArray<Profile>(profilesResponse);
       allProfiles.push(...profiles);
     }
