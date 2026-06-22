@@ -37,12 +37,13 @@ import type {
   SendMessageParams,
   EditMessageParams,
   ReactMessageParams,
+  UploadResponse,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.9.0";
+const PACKAGE_VERSION = "1.10.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -607,6 +608,15 @@ export class PostProxyClient {
     }
 
     return response;
+  }
+
+  /**
+   * Create a temporary file upload URL. Sandboxed environments (which can't
+   * read local files for direct multipart upload) POST their file to the
+   * returned upload_url, then pass the returned key in a post's media array.
+   */
+  async createUpload(): Promise<UploadResponse> {
+    return this.request<UploadResponse>("POST", "/uploads");
   }
 
   /**

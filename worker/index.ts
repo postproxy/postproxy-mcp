@@ -10,7 +10,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
-const PACKAGE_VERSION = "1.9.0";
+const PACKAGE_VERSION = "1.10.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -261,6 +261,12 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const response = await this.apiRequest<any>("GET", "/profile_groups/");
     const profileGroups = this.extractArray<ProfileGroup>(response);
     return JSON.stringify({ profile_groups: profileGroups }, null, 2);
+  }
+
+  private async handleUploadCreate(): Promise<string> {
+    this.getApiKey();
+    const upload = await this.apiRequest<any>("POST", "/uploads");
+    return JSON.stringify(upload, null, 2);
   }
 
   private async handlePostPublish(args: any): Promise<string> {
@@ -989,6 +995,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleProfilesList(args);
       case "profile_groups_list":
         return await this.handleProfileGroupsList();
+      case "upload_create":
+        return await this.handleUploadCreate();
       case "profiles_placements":
         return await this.handleProfilesPlacements(args);
       case "profiles_stats":
@@ -1088,7 +1096,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           result: {
             protocolVersion: "2025-03-26",
             capabilities: { tools: {} },
-            serverInfo: { name: "postproxy-mcp", version: "1.9.0" },
+            serverInfo: { name: "postproxy-mcp", version: "1.10.0" },
           },
           id,
         };
@@ -1244,7 +1252,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return Response.json(
       {
         name: "postproxy-mcp",
-        version: "1.9.0",
+        version: "1.10.0",
         description: "MCP server for PostProxy - Social Media Management",
         tools: TOOL_DEFINITIONS.map((t) => t.name),
       },

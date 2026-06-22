@@ -595,3 +595,9 @@ export interface ReactMessageParams {
   reaction?: string;
   emoji?: string;
 }
+
+export interface UploadResponse {
+  key: string; // signed token to pass in a post's media array
+  upload_url: string; // tmpfiles.postproxy.dev URL the file is uploaded to
+  expires_in: number; // seconds until the upload URL expires
+}

@@ -17,6 +17,7 @@ import {
   handlePostStats,
 } from "./tools/post.js";
 import { handleHistoryList } from "./tools/history.js";
+import { handleUploadCreate } from "./tools/upload.js";
 import {
   handleQueuesList,
   handleQueuesGet,
@@ -109,6 +110,22 @@ export const TOOL_DEFINITIONS = [
           description: "Optional profile group ID (hashid). If provided, only profiles in this group are returned.",
         },
       },
+    },
+  },
+  {
+    name: "upload_create",
+    description:
+      "Create a temporary file upload URL for sandboxed environments. Returns a `key`, an `upload_url`, and `expires_in` (seconds). Flow: (1) call this tool, (2) POST the raw file bytes to the returned `upload_url` (valid for `expires_in` seconds), which responds with `{\"url\": \"https://...\"}`, (3) pass that returned `url` in the `media` array of post_publish (or post_update). The upload host is `tmpfiles.postproxy.dev` — that domain must be whitelisted/allowlisted in the sandbox's network egress rules for the upload to succeed. Only use this when running against the remote (hosted) MCP server: if you are running the local (stdio) MCP server, do NOT use this — instead pass local file paths directly in the `media` array, which uploads them via multipart.",
+    annotations: {
+      title: "Create Upload URL",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {},
     },
   },
   {
@@ -1447,6 +1464,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleProfilesList(client, args as any);
         case "profile_groups_list":
           return await handleProfileGroupsList(client);
+        case "upload_create":
+          return await handleUploadCreate(client);
         case "post_publish":
           return await handlePostPublish(client, args as any);
         case "post_status":
