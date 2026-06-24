@@ -1230,8 +1230,28 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       });
     }
 
-    // ─── MCP endpoints ─────────────────────────────────────────────
-    if (url.pathname !== "/mcp" && url.pathname !== "/") {
+    // ─── Root: public service metadata (no auth) ───────────────────
+    if (url.pathname === "/") {
+      if (request.method !== "GET") {
+        return new Response("Method Not Allowed", { status: 405, headers: this.corsHeaders });
+      }
+      return Response.json(
+        {
+          name: "postproxy-mcp",
+          version: "1.10.0",
+          description: "MCP server for Postproxy - Social Media Management",
+          transport: "streamable-http",
+          endpoints: { mcp: "/mcp (POST) - Streamable HTTP transport" },
+          documentation: "https://postproxy.dev/getting-started/authentication/",
+          authentication: "Required on /mcp: 'Authorization: Bearer YOUR_API_KEY'",
+          tools: TOOL_DEFINITIONS.map((t) => t.name),
+        },
+        { headers: this.corsHeaders }
+      );
+    }
+
+    // ─── MCP endpoint (auth required) ──────────────────────────────
+    if (url.pathname !== "/mcp") {
       return new Response("Not Found", { status: 404, headers: this.corsHeaders });
     }
 
@@ -1291,7 +1311,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       {
         name: "postproxy-mcp",
         version: "1.10.0",
-        description: "MCP server for PostProxy - Social Media Management",
+        description: "MCP server for Postproxy - Social Media Management",
         tools: TOOL_DEFINITIONS.map((t) => t.name),
       },
       { headers: this.corsHeaders }
