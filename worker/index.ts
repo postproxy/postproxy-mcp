@@ -1159,24 +1159,6 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       return new Response(null, { status: 204, headers: this.corsHeaders });
     }
 
-    // ─── OAuth: metadata discovery ─────────────────────────────────
-    if (url.pathname === "/.well-known/oauth-authorization-server") {
-      return Response.json(
-        {
-          issuer: this.appUrl,
-          authorization_endpoint: `${this.appUrl}/oauth/authorize`,
-          token_endpoint: `${this.appUrl}/oauth/token`,
-          revocation_endpoint: `${this.appUrl}/oauth/revoke`,
-          registration_endpoint: `${this.appUrl}/oauth/register`,
-          response_types_supported: ["code"],
-          grant_types_supported: ["authorization_code", "refresh_token"],
-          code_challenge_methods_supported: ["S256"],
-          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
-        },
-        { headers: this.corsHeaders }
-      );
-    }
-
     // ─── OAuth: protected-resource metadata (RFC 9728) ─────────────
     // MCP clients fetch this after a 401 to discover the authorization server.
     if (url.pathname === "/.well-known/oauth-protected-resource") {
