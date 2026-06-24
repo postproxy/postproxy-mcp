@@ -1144,6 +1144,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-PostProxy-API-Key",
+    "Access-Control-Expose-Headers": "WWW-Authenticate",
   };
 
   private get appUrl(): string {
@@ -1166,10 +1167,27 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           authorization_endpoint: `${this.appUrl}/oauth/authorize`,
           token_endpoint: `${this.appUrl}/oauth/token`,
           revocation_endpoint: `${this.appUrl}/oauth/revoke`,
+          registration_endpoint: `${this.appUrl}/oauth/register`,
           response_types_supported: ["code"],
           grant_types_supported: ["authorization_code", "refresh_token"],
           code_challenge_methods_supported: ["S256"],
-          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
+        },
+        { headers: this.corsHeaders }
+      );
+    }
+
+    // ─── OAuth: protected-resource metadata (RFC 9728) ─────────────
+    // MCP clients fetch this after a 401 to discover the authorization server.
+    if (url.pathname === "/.well-known/oauth-protected-resource") {
+      return Response.json(
+        {
+          resource: url.origin,
+          authorization_servers: [this.appUrl],
+          scopes_supported: ["read", "write"],
+          bearer_methods_supported: ["header"],
+          resource_name: "Postproxy MCP",
+          resource_documentation: "https://postproxy.dev/getting-started/authentication/",
         },
         { headers: this.corsHeaders }
       );
@@ -1223,6 +1241,26 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       this.apiKey = authHeader.slice("Bearer ".length);
     } else {
       this.apiKey = request.headers.get("X-PostProxy-API-Key") || url.searchParams.get("api_key");
+    }
+
+    // Require auth for the MCP endpoint. The RFC 9728 WWW-Authenticate header
+    // points MCP clients (e.g. Claude) at the protected-resource metadata so
+    // they can discover the authorization server and run the OAuth/DCR flow.
+    if (!this.apiKey) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Missing API key. Provide via Authorization header: 'Authorization: Bearer YOUR_API_KEY'",
+        }),
+        {
+          status: 401,
+          headers: {
+            ...this.corsHeaders,
+            "Content-Type": "application/json",
+            "WWW-Authenticate": `Bearer realm="postproxy-mcp", resource_metadata="${url.origin}/.well-known/oauth-protected-resource"`,
+          },
+        }
+      );
     }
 
     // Handle POST requests (MCP JSON-RPC)
