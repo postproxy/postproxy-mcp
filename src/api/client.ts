@@ -43,7 +43,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.10.0";
+const PACKAGE_VERSION = "1.11.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -478,6 +478,20 @@ export class PostProxyClient {
   async getProfileGroups(): Promise<ProfileGroup[]> {
     const response = await this.request<any>("GET", "/profile_groups/");
     return this.extractArray<ProfileGroup>(response);
+  }
+
+  /**
+   * Initialize a connection (OAuth/connect flow) for a profile group
+   */
+  async initializeProfileGroupConnection(
+    profileGroupId: string,
+    body: Record<string, unknown>
+  ): Promise<any> {
+    return this.request<any>(
+      "POST",
+      `/profile_groups/${encodeURIComponent(profileGroupId)}/initialize_connection`,
+      body
+    );
   }
 
   /**

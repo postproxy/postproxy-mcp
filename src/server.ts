@@ -6,7 +6,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { PostProxyClient } from "./api/client.js";
 import { handleAuthStatus } from "./tools/auth.js";
-import { handleProfilesList, handleProfileGroupsList, handleProfilesPlacements, handleProfilesStats } from "./tools/profiles.js";
+import { handleProfilesList, handleProfileGroupsList, handleProfileGroupsInitializeConnection, handleProfilesPlacements, handleProfilesStats } from "./tools/profiles.js";
 import {
   handlePostPublish,
   handlePostStatus,
@@ -91,6 +91,43 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {},
+    },
+  },
+  {
+    name: "profile_groups_initialize_connection",
+    description: "Generate a URL to connect a new social media profile to a profile group (initiates the OAuth/connect flow). For bluesky, pass identifier + app_password. For telegram, pass bot_token. The returned URL should be opened by the user to complete the connection.",
+    annotations: {
+      title: "Initialize Profile Connection",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_group_id: {
+          type: "string",
+          description: "Profile group ID (hashid) to connect a profile to",
+        },
+        platform: {
+          type: "string",
+          description: "Platform to connect (e.g. 'instagram', 'linkedin', 'bluesky', 'telegram')",
+        },
+        identifier: {
+          type: "string",
+          description: "Bluesky handle (e.g. yourname.bsky.social). Required for bluesky.",
+        },
+        app_password: {
+          type: "string",
+          description: "Bluesky app password (bsky.app/settings/app-passwords). Required for bluesky.",
+        },
+        bot_token: {
+          type: "string",
+          description: "Telegram bot token from @BotFather. Required for telegram.",
+        },
+      },
+      required: ["profile_group_id", "platform"],
     },
   },
   {
@@ -1434,7 +1471,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.9.0",
+      version: "1.11.0",
     },
     {
       capabilities: {
@@ -1464,6 +1501,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleProfilesList(client, args as any);
         case "profile_groups_list":
           return await handleProfileGroupsList(client);
+        case "profile_groups_initialize_connection":
+          return await handleProfileGroupsInitializeConnection(client, args as any);
         case "upload_create":
           return await handleUploadCreate(client);
         case "post_publish":

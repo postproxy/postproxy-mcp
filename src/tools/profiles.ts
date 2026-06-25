@@ -100,6 +100,72 @@ export async function handleProfileGroupsList(client: PostProxyClient) {
   }
 }
 
+export async function handleProfileGroupsInitializeConnection(
+  client: PostProxyClient,
+  args: {
+    profile_group_id: string;
+    platform: string;
+    identifier?: string;
+    app_password?: string;
+    bot_token?: string;
+  }
+) {
+  logToolCall("profile_groups.initialize_connection", args);
+
+  if (!args.profile_group_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "profile_group_id is required");
+  }
+  if (!args.platform) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "platform is required");
+  }
+  if (args.platform === "bluesky" && (!args.identifier || !args.app_password)) {
+    throw createError(
+      ErrorCodes.VALIDATION_ERROR,
+      "identifier and app_password are required for bluesky"
+    );
+  }
+  if (args.platform === "telegram" && !args.bot_token) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "bot_token is required for telegram");
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw createError(ErrorCodes.AUTH_MISSING, "API key is not configured");
+  }
+
+  // MCP has no browser to redirect back to, so we never send redirect_url and
+  // always force the API to return a URL the user opens manually.
+  const body: Record<string, unknown> = {
+    platform: args.platform,
+    force_no_redirect: true,
+  };
+  if (args.identifier) body.identifier = args.identifier;
+  if (args.app_password) body.app_password = args.app_password;
+  if (args.bot_token) body.bot_token = args.bot_token;
+
+  try {
+    const result = await client.initializeProfileGroupConnection(
+      args.profile_group_id,
+      body
+    );
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "profile_groups.initialize_connection");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to initialize profile group connection: ${(error as Error).message}`
+    );
+  }
+}
+
 export async function handleProfilesPlacements(
   client: PostProxyClient,
   args: { profile_id: string }

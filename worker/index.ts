@@ -10,7 +10,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
-const PACKAGE_VERSION = "1.10.0";
+const PACKAGE_VERSION = "1.11.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -261,6 +261,33 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const response = await this.apiRequest<any>("GET", "/profile_groups/");
     const profileGroups = this.extractArray<ProfileGroup>(response);
     return JSON.stringify({ profile_groups: profileGroups }, null, 2);
+  }
+
+  private async handleProfileGroupsInitializeConnection(args: any): Promise<string> {
+    this.getApiKey();
+    const { profile_group_id, platform, identifier, app_password, bot_token } = args || {};
+    if (!profile_group_id) throw new Error("profile_group_id is required");
+    if (!platform) throw new Error("platform is required");
+    if (platform === "bluesky" && (!identifier || !app_password)) {
+      throw new Error("identifier and app_password are required for bluesky");
+    }
+    if (platform === "telegram" && !bot_token) {
+      throw new Error("bot_token is required for telegram");
+    }
+
+    // MCP has no browser to redirect back to, so we never send redirect_url and
+    // always force the API to return a URL the user opens manually.
+    const body: Record<string, unknown> = { platform, force_no_redirect: true };
+    if (identifier) body.identifier = identifier;
+    if (app_password) body.app_password = app_password;
+    if (bot_token) body.bot_token = bot_token;
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/profile_groups/${encodeURIComponent(profile_group_id)}/initialize_connection`,
+      body
+    );
+    return JSON.stringify(response, null, 2);
   }
 
   private async handleUploadCreate(): Promise<string> {
@@ -995,6 +1022,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleProfilesList(args);
       case "profile_groups_list":
         return await this.handleProfileGroupsList();
+      case "profile_groups_initialize_connection":
+        return await this.handleProfileGroupsInitializeConnection(args);
       case "upload_create":
         return await this.handleUploadCreate();
       case "profiles_placements":
@@ -1096,7 +1125,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           result: {
             protocolVersion: "2025-03-26",
             capabilities: { tools: {} },
-            serverInfo: { name: "postproxy-mcp", version: "1.10.0" },
+            serverInfo: { name: "postproxy-mcp", version: PACKAGE_VERSION },
           },
           id,
         };
@@ -1220,7 +1249,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       return Response.json(
         {
           name: "postproxy-mcp",
-          version: "1.10.0",
+          version: PACKAGE_VERSION,
           description: "MCP server for Postproxy - Social Media Management",
           transport: "streamable-http",
           endpoints: { mcp: "/mcp (POST) - Streamable HTTP transport" },
@@ -1292,7 +1321,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return Response.json(
       {
         name: "postproxy-mcp",
-        version: "1.10.0",
+        version: PACKAGE_VERSION,
         description: "MCP server for Postproxy - Social Media Management",
         tools: TOOL_DEFINITIONS.map((t) => t.name),
       },
