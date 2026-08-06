@@ -214,7 +214,7 @@ export const TOOL_DEFINITIONS = [
           properties: {
             instagram: {
               type: "object",
-              description: "Instagram: format (post|reel|story), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms)",
+              description: "Instagram: format (post|reel|story), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
               additionalProperties: true,
             },
             youtube: {
@@ -770,7 +770,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "comments_list",
-    description: "List comments on a published post. Returns paginated top-level comments with nested replies. Not all platforms support comments.",
+    description: "List comments on a published post. Returns paginated top-level comments with nested replies. Optionally filter by when PostProxy received the comment with from/to. Not all platforms support comments.",
     annotations: {
       title: "List Comments",
       readOnlyHint: true,
@@ -795,6 +795,14 @@ export const TOOL_DEFINITIONS = [
         per_page: {
           type: "number",
           description: "Number of top-level comments per page (default: 20)",
+        },
+        from: {
+          type: "string",
+          description: "Optional ISO 8601 date/time — only include comments received at or after this point. A bare date (2026-03-25) means that date's start of day. Filters on when PostProxy received the comment, not the platform's posted_at.",
+        },
+        to: {
+          type: "string",
+          description: "Optional ISO 8601 date/time — only include comments received at or before this point. Applies to top-level comments only; a comment in range still returns its full replies array.",
         },
       },
       required: ["post_id", "profile_id"],
@@ -1247,7 +1255,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "dm_message_send",
-    description: "Send an outbound direct message. Provide EITHER body (text) OR media (a single attachment), not both. The message is queued and delivered asynchronously (returns status: pending). Outside Meta's 24h messaging window, pass tag: HUMAN_AGENT (Facebook/Instagram only). reply_to_external_id and reply_markup are Telegram-only.",
+    description: "Send an outbound direct message. Provide EITHER body (text) OR media (a single attachment), not both. The message is queued and delivered asynchronously (returns status: pending). Outside Meta's 24h messaging window, a human agent replying to the participant's own inquiry can pass tag: HUMAN_AGENT (Facebook/Instagram only) — never for promotional or automated content. reply_to_external_id and reply_markup are Telegram-only.",
     annotations: {
       title: "Send Message",
       readOnlyHint: false,
@@ -1274,7 +1282,7 @@ export const TOOL_DEFINITIONS = [
         tag: {
           type: "string",
           enum: ["HUMAN_AGENT"],
-          description: "Message tag for sending outside the 24h window. Facebook/Instagram only — ignored on Telegram and Bluesky.",
+          description: "Message tag for sending outside the 24h window — extends it to 7 days from the participant's last inbound message. Facebook and Instagram only; ignored on Telegram and Bluesky. Meta's policy restricts it to a human agent replying to the participant's own inquiry: using it for marketing, offers, or automated re-engagement can get that Page / Instagram account's messaging capability suspended. Past 7 days Meta rejects the send and the message lands in status: failed with the platform error in error_details.",
         },
         reply_to_external_id: {
           type: "string",
@@ -1471,7 +1479,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.11.0",
+      version: "1.12.0",
     },
     {
       capabilities: {

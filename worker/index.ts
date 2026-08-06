@@ -10,7 +10,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
-const PACKAGE_VERSION = "1.11.0";
+const PACKAGE_VERSION = "1.12.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -648,6 +648,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     params.append("profile_id", profile_id);
     if (args.page !== undefined) params.append("page", String(args.page));
     if (args.per_page !== undefined) params.append("per_page", String(args.per_page));
+    if (args.from) params.append("from", String(args.from));
+    if (args.to) params.append("to", String(args.to));
 
     const response = await this.apiRequest<any>("GET", `/posts/${post_id}/comments?${params.toString()}`);
     return JSON.stringify(response, null, 2);

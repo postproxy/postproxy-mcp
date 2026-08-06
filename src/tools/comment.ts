@@ -14,6 +14,8 @@ export async function handleCommentsList(
     profile_id: string;
     page?: number;
     per_page?: number;
+    from?: string;
+    to?: string;
   }
 ) {
   if (!args.post_id) {
@@ -28,7 +30,8 @@ export async function handleCommentsList(
       args.post_id,
       args.profile_id,
       args.page,
-      args.per_page
+      args.per_page,
+      { from: args.from, to: args.to }
     );
 
     return {

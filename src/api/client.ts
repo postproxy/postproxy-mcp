@@ -43,7 +43,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.11.0";
+const PACKAGE_VERSION = "1.12.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -891,7 +891,8 @@ export class PostProxyClient {
     postId: string,
     profileId: string,
     page?: number,
-    perPage?: number
+    perPage?: number,
+    range?: { from?: string; to?: string }
   ): Promise<CommentsListResponse> {
     const params = new URLSearchParams();
     params.append("profile_id", profileId);
@@ -900,6 +901,12 @@ export class PostProxyClient {
     }
     if (perPage !== undefined) {
       params.append("per_page", String(perPage));
+    }
+    if (range?.from) {
+      params.append("from", range.from);
+    }
+    if (range?.to) {
+      params.append("to", range.to);
     }
     return this.request<CommentsListResponse>(
       "GET",

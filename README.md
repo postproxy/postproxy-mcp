@@ -475,6 +475,10 @@ List comments on a published post. Returns paginated top-level comments with nes
 - `profile_id` (string, required): Profile ID to identify which platform's comments to retrieve
 - `page` (number, optional): Page number, zero-indexed (default: 0)
 - `per_page` (number, optional): Number of top-level comments per page (default: 20)
+- `from` (string, optional): ISO 8601 date/time — only comments received at or after this point
+- `to` (string, optional): ISO 8601 date/time — only comments received at or before this point
+
+`from`/`to` filter on when PostProxy received the comment, not the platform's `posted_at` (which isn't always populated). A bare date such as `2026-03-25` means that date's start of day. The filter applies to top-level comments only — a comment in range still returns its full `replies` array.
 
 **Returns**:
 ```json
@@ -595,7 +599,7 @@ Remove a like from a comment. Currently only supported on Facebook.
 
 ### Direct Messages
 
-1:1 messaging (chats and messages) on DM-capable profiles. Supported on Facebook (Messenger), Instagram (DMs), Telegram (Bot DMs), and Bluesky. Outbound sends are processed asynchronously (returned with `status: "pending"`). Meta's 24h messaging window applies to Facebook/Instagram — pass `tag: "HUMAN_AGENT"` to send outside it; Telegram and Bluesky have no window.
+1:1 messaging (chats and messages) on DM-capable profiles. Supported on Facebook (Messenger), Instagram (DMs), Telegram (Bot DMs), and Bluesky. Outbound sends are processed asynchronously (returned with `status: "pending"`). Meta's 24h messaging window applies to Facebook/Instagram — a human replying to the participant's own inquiry can pass `tag: "HUMAN_AGENT"` to send outside it (up to 7 days, never for promotional or automated content); Telegram and Bluesky have no window.
 
 #### `dm_chats_list`
 
@@ -643,7 +647,7 @@ Send an outbound message. Provide **either** `body` (text) **or** `media` (a sin
 - `chat_id` (string, required): Chat ID or external conversation ID
 - `body` (string, optional): Message text (required when `media` is empty)
 - `media` (string[], optional): Up to one attachment as a URL or local file path. Not supported on Bluesky. (The remote/Worker MCP accepts URLs only.)
-- `tag` (string, optional): `HUMAN_AGENT` to send outside the 24h window (Facebook/Instagram only)
+- `tag` (string, optional): `HUMAN_AGENT` to send outside the 24h window — extends it to 7 days from the participant's last inbound message (Facebook/Instagram only). Meta restricts it to a **human** replying to the participant's own inquiry; using it for marketing, offers, or automated re-engagement can get that Page / Instagram account's messaging capability suspended. Past 7 days Meta rejects the send and the message lands in `status: failed` with the platform error in `error_details`.
 - `reply_to_external_id` (string, optional): **Telegram only** — message_id to thread under
 - `reply_markup` (object, optional): **Telegram only** — inline/reply keyboard payload
 
@@ -1034,6 +1038,7 @@ Use `profiles_placements` against your Telegram profile to list channel `chat_id
 - `audio_name`: String - audio track name for reels
 - `trial_strategy`: "MANUAL" | "SS_PERFORMANCE" - trial strategy for reels
 - `thumb_offset`: String - thumbnail offset in milliseconds for reels
+- `user_tags`: Array of `{ username, x, y, media_index }` - tag public Instagram accounts on any format (post, reel, story). Images **require** `x` and `y` (floats `0.0`–`1.0` from the top-left corner); reels and video slides are tagged by username only (coordinates are dropped); stories accept coordinates but don't need them. `media_index` picks the carousel slide (0-based, default `0`). A leading `@` is stripped. Out-of-range coordinates, a `media_index` past the last media item, or an image tag missing `x`/`y` are rejected with a 422 naming the entry. Private accounts and accounts with tagging off are silently skipped by Instagram.
 
 **YouTube:**
 - `title`: String - video title
