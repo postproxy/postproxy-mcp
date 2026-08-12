@@ -59,12 +59,21 @@ export async function handleHistoryList(
 
       return {
         post_id: post.id,
+        content,
         content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
         created_at: post.created_at,
         overall_status: overallStatus,
+        status: post.status,
         scheduled_at: post.scheduled_at || null,
         draft: post.draft || false,
+        source: post.source ?? null,
+        queue_id: post.queue_id ?? null,
         platforms_count: post.platforms?.length || 0,
+        platforms: (post.platforms || []).map((p) => ({
+          platform: p.platform,
+          status: p.status,
+          url: p.url || p.permalink || null,
+        })),
       };
     });
 

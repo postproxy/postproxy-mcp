@@ -304,7 +304,8 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "post_status",
-    description: "Get status of a published post by post ID",
+    description:
+      "Get status of a post by post ID. Returns the full content, scheduled_at (null if not scheduled), created_at, draft flag, internal status, per-platform status with published URLs, and media details",
     annotations: {
       title: "Get Post Status",
       readOnlyHint: true,
@@ -477,7 +478,8 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "history_list",
-    description: "List recent post jobs",
+    description:
+      "List recent post jobs. Each entry includes the full content, created_at, scheduled_at (null if not scheduled), draft flag, internal status, and the platforms the post targets with their status and published URLs",
     annotations: {
       title: "List Post History",
       readOnlyHint: true,
@@ -1479,7 +1481,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.12.0",
+      version: "1.13.0",
     },
     {
       capabilities: {

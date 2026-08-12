@@ -10,7 +10,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 
-const PACKAGE_VERSION = "1.12.0";
+const PACKAGE_VERSION = "1.13.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -42,6 +42,7 @@ interface PlatformOutcome {
   platform: string;
   status: "pending" | "processing" | "published" | "failed" | "deleted";
   url?: string;
+  permalink?: string | null;
   post_id?: string;
   error?: string | null;
   error_details?: PlatformErrorDetails | null;
@@ -74,6 +75,8 @@ interface Post {
   draft: boolean;
   scheduled_at: string | null;
   created_at: string;
+  source?: string;
+  queue_id?: string | null;
   media?: MediaAttachment[];
   platforms: PlatformOutcome[];
   thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
@@ -383,7 +386,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const platforms = (postDetails.platforms || []).map((platform) => ({
       platform: platform.platform,
       status: platform.status,
-      url: platform.url,
+      url: platform.url || platform.permalink || undefined,
       post_id: platform.post_id,
       error: platform.error || null,
       error_details: platform.error_details ?? null,
@@ -396,6 +399,11 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       overall_status: this.determineOverallStatus(postDetails),
       draft: postDetails.draft || false,
       status: postDetails.status,
+      content: postDetails.body || postDetails.content || "",
+      scheduled_at: postDetails.scheduled_at || null,
+      created_at: postDetails.created_at,
+      source: postDetails.source ?? null,
+      queue_id: postDetails.queue_id ?? null,
       platforms,
     };
 
@@ -515,11 +523,21 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       const content = post.body || post.content || "";
       return {
         post_id: post.id,
+        content,
         content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
         created_at: post.created_at,
         overall_status: this.determineOverallStatus(post),
+        status: post.status,
+        scheduled_at: post.scheduled_at || null,
         draft: post.draft || false,
+        source: post.source ?? null,
+        queue_id: post.queue_id ?? null,
         platforms_count: post.platforms?.length || 0,
+        platforms: (post.platforms || []).map((p) => ({
+          platform: p.platform,
+          status: p.status,
+          url: p.url || p.permalink || null,
+        })),
       };
     });
 

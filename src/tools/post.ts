@@ -156,7 +156,7 @@ export async function handlePostStatus(
         platforms.push({
           platform: platform.platform,
           status: platform.status,
-          url: platform.url,
+          url: platform.url || platform.permalink || undefined,
           post_id: platform.post_id,
           error: platform.error || null,
           error_details: platform.error_details ?? null,
@@ -208,6 +208,11 @@ export async function handlePostStatus(
       overall_status: overallStatus,
       draft: postDetails.draft || false,
       status: postDetails.status,
+      content: postDetails.body || postDetails.content || "",
+      scheduled_at: postDetails.scheduled_at || null,
+      created_at: postDetails.created_at,
+      source: postDetails.source ?? null,
+      queue_id: postDetails.queue_id ?? null,
       platforms,
     };
 

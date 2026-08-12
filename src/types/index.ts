@@ -93,6 +93,7 @@ export interface PlatformOutcome {
     [key: string]: any;
   };
   url?: string;
+  permalink?: string | null; // API returns the published post link as "permalink"
   post_id?: string;
   error?: string | null; // Error summary (null on success)
   error_details?: PlatformErrorDetails | null; // Structured platform error info
@@ -107,6 +108,8 @@ export interface PostDetails {
   scheduled_at: string | null;
   created_at: string;
   updated_at?: string;
+  source?: string; // Origin of the post, e.g. "postproxy" or "imported"
+  queue_id?: string | null;
   media?: MediaAttachment[];
   platforms: PlatformOutcome[];
   thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;
@@ -121,6 +124,8 @@ export interface Post {
   scheduled_at: string | null;
   created_at: string;
   updated_at?: string;
+  source?: string; // Origin of the post, e.g. "postproxy" or "imported"
+  queue_id?: string | null;
   media?: MediaAttachment[];
   platforms: PlatformOutcome[];
   thread?: Array<{ id: string; body: string; media?: MediaAttachment[] }>;

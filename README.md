@@ -246,6 +246,11 @@ Get status of a published post by job ID.
   "overall_status": "complete",
   "draft": false,
   "status": "processed",
+  "content": "Full post body as submitted...",
+  "scheduled_at": "2024-01-02T09:00:00Z",
+  "created_at": "2024-01-01T12:00:00Z",
+  "source": "postproxy",
+  "queue_id": null,
   "platforms": [
     {
       "platform": "twitter",
@@ -258,6 +263,8 @@ Get status of a published post by job ID.
   ]
 }
 ```
+
+`scheduled_at` is `null` for posts published immediately. Platform `url` is the published permalink (null until published).
 
 **Status values**:
 - `overall_status`: `"draft"`, `"pending"`, `"processing"`, `"complete"`, `"failed"`
@@ -724,15 +731,31 @@ List recent post jobs.
   "jobs": [
     {
       "post_id": "job-123",
+      "content": "Full post body as submitted...",
       "content_preview": "Post content preview...",
       "created_at": "2024-01-01T12:00:00Z",
       "overall_status": "complete",
+      "status": "processed",
+      "scheduled_at": "2024-01-02T09:00:00Z",
       "draft": false,
-      "platforms_count": 2
+      "source": "postproxy",
+      "queue_id": null,
+      "platforms_count": 2,
+      "platforms": [
+        {
+          "platform": "twitter",
+          "status": "published",
+          "url": "https://x.com/user/status/123"
+        }
+      ]
     }
   ]
 }
 ```
+
+`scheduled_at` is `null` for posts that were published immediately. `status` is the raw API status (`draft`, `scheduled`, `processing`, `processed`, …), while `overall_status` folds platform outcomes into a single verdict.
+
+> **Note**: PostProxy's `/posts` API does not return profile identity (profile ID or name) per platform — only the network. Use `profiles_list` to map networks to connected profiles.
 
 ## Example Prompts
 
