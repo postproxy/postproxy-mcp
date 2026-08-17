@@ -9,8 +9,9 @@
 
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
+import { validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.13.0";
+const PACKAGE_VERSION = "1.14.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -915,6 +916,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     if (Array.isArray(args.media) && args.media.length > 1) {
       throw new Error("Direct messages support one attachment per send");
     }
+    const interactiveError = validateDmInteractive(args);
+    if (interactiveError) throw new Error(interactiveError);
 
     const body: any = {};
     if (args.body !== undefined) body.body = args.body;
@@ -922,6 +925,11 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     if (args.tag) body.tag = args.tag;
     if (args.reply_to_external_id) body.reply_to_external_id = args.reply_to_external_id;
     if (args.reply_markup) body.reply_markup = args.reply_markup;
+    if (Array.isArray(args.quick_replies) && args.quick_replies.length > 0) {
+      body.quick_replies = args.quick_replies;
+    }
+    if (Array.isArray(args.buttons) && args.buttons.length > 0) body.buttons = args.buttons;
+    if (args.card) body.card = args.card;
 
     const response = await this.apiRequest<any>(
       "POST",

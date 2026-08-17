@@ -657,6 +657,49 @@ Send an outbound message. Provide **either** `body` (text) **or** `media` (a sin
 - `tag` (string, optional): `HUMAN_AGENT` to send outside the 24h window — extends it to 7 days from the participant's last inbound message (Facebook/Instagram only). Meta restricts it to a **human** replying to the participant's own inquiry; using it for marketing, offers, or automated re-engagement can get that Page / Instagram account's messaging capability suspended. Past 7 days Meta rejects the send and the message lands in `status: failed` with the platform error in `error_details`.
 - `reply_to_external_id` (string, optional): **Telegram only** — message_id to thread under
 - `reply_markup` (object, optional): **Telegram only** — inline/reply keyboard payload
+- `quick_replies` (object[], optional): **Facebook & Instagram only** — up to 13 tappable chips above the participant's composer. Each `{ title, payload }`.
+- `buttons` (object[], optional): **Facebook & Instagram only** — up to 3 buttons attached to the message. Each `{ type: "web_url", title, url }` or `{ type: "postback", title, payload }`.
+- `card` (object, optional): **Facebook & Instagram only** — extra fields for the card carrying `buttons` (`subtitle`, `image_url`, `default_action`). Requires `buttons`.
+
+##### Quick replies and buttons
+
+**Facebook Messenger and Instagram Direct only** — on Telegram use `reply_markup` instead (passing these returns a `422`). Quick replies are ephemeral chips that vanish once one is tapped; buttons stay attached to the message in the thread.
+
+| | `quick_replies` | `buttons` |
+|---|---|---|
+| Max per send | 13 | 3 |
+| `title` | required, ≤20 chars | required, ≤20 chars |
+| `payload` | required, ≤1000 chars | required for `postback`, ≤1000 chars |
+| `url` | — | required for `web_url`, must be `https://` |
+| Needs `body` | no | yes, and `body` is capped at **80** chars |
+| With `media` | Facebook only | not allowed |
+
+```json
+{
+  "chat_id": "chat_xyz789",
+  "body": "What can I help with?",
+  "quick_replies": [
+    { "title": "Track order", "payload": "TRACK" },
+    { "title": "Talk to support", "payload": "HELP" }
+  ]
+}
+```
+
+```json
+{
+  "chat_id": "chat_xyz789",
+  "body": "Nike Air Max",
+  "card": { "subtitle": "$129 · Arriving Friday", "image_url": "https://cdn.example.com/shoe.png" },
+  "buttons": [
+    { "type": "web_url", "title": "Buy now", "url": "https://shop.example.com/p/air-max" },
+    { "type": "postback", "title": "Notify me", "payload": "NOTIFY:air-max" }
+  ]
+}
+```
+
+Buttons are delivered as a Meta generic template whose element title is your `body` — that's where the 80-character cap comes from. Instagram is stricter than Messenger: it delivers quick replies only on a plain-text message, so `quick_replies` with `media` or with `buttons` returns `422` there.
+
+**Receiving taps**: a tapped chip or button postback arrives as an **inbound message** carrying `tapped_action`: `{ "kind": "quick_reply" | "postback" | "callback_query", "payload": "...", "title": "..." }`. Read it from `dm_messages_list` / `dm_message_get` instead of digging through `platform_data`. Instagram ice-breaker taps and Telegram callback queries normalize to the same field.
 
 #### `dm_message_get`
 
@@ -715,6 +758,8 @@ Send a DM to the author of a comment, in reply to that comment (Meta "Private Re
 | Private reply to comment | Yes | Yes | No | No |
 | `tag` (24h window) | Yes | Yes | n/a | n/a |
 | `reply_to_external_id` / `reply_markup` | No | No | Yes | No |
+| `quick_replies` / `buttons` / `card` | Yes | Yes (text-only) | No | No |
+| `tapped_action` on inbound taps | Yes | Yes | Yes | No |
 
 ### History
 

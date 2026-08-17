@@ -492,6 +492,46 @@ export interface DMReaction {
 }
 
 /**
+ * A quick-reply chip on an outbound Meta DM. Rendered above the participant's
+ * composer and gone once one is tapped.
+ */
+export interface DMQuickReply {
+  content_type?: "text";
+  title: string; // max 20 chars
+  payload: string; // max 1000 chars, echoed back in tapped_action
+}
+
+/**
+ * A button attached to an outbound Meta DM (generic-template element).
+ */
+export interface DMButton {
+  type: "web_url" | "postback";
+  title: string; // max 20 chars
+  url?: string; // web_url buttons — must be https://
+  payload?: string; // postback buttons — max 1000 chars
+}
+
+/**
+ * Extra generic-template fields for the card carrying `buttons`.
+ */
+export interface DMCard {
+  subtitle?: string; // max 80 chars
+  image_url?: string; // https:// only
+  default_action?: { type: "web_url"; url: string };
+}
+
+/**
+ * Set on an inbound message created by a tap on an interactive element you
+ * sent — a quick reply, a button postback, an ice breaker, or a Telegram
+ * callback query.
+ */
+export interface DMTappedAction {
+  kind: "quick_reply" | "postback" | "callback_query";
+  payload: string;
+  title: string | null;
+}
+
+/**
  * Media attachment on a DM message (inbound or outbound).
  */
 export interface DMAttachment {
@@ -542,6 +582,10 @@ export interface DirectMessage {
   external_edited_at?: string | null;
   reply_to_external_id?: string | null;
   reply_markup?: Record<string, any> | null;
+  quick_replies?: DMQuickReply[] | null;
+  buttons?: DMButton[] | null;
+  card?: DMCard | null;
+  tapped_action?: DMTappedAction | null;
   external_deleted_at?: string | null;
   reactions?: DMReaction[];
   attachments?: DMAttachment[];
@@ -589,6 +633,9 @@ export interface SendMessageParams {
   tag?: "HUMAN_AGENT";
   reply_to_external_id?: string;
   reply_markup?: Record<string, any>;
+  quick_replies?: DMQuickReply[]; // Facebook/Instagram only, max 13
+  buttons?: DMButton[]; // Facebook/Instagram only, max 3
+  card?: DMCard; // requires buttons
 }
 
 export interface EditMessageParams {

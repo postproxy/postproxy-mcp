@@ -1219,7 +1219,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "dm_messages_list",
-    description: "List messages in a chat, most recent first. Optionally filter by direction or status.",
+    description: "List messages in a chat, most recent first. Optionally filter by direction or status. Inbound messages created by a tap on an interactive element you sent (quick reply, button postback, Instagram ice breaker, Telegram callback query) carry tapped_action: {kind, payload, title} — read the payload from there instead of digging through platform_data.",
     annotations: {
       title: "List Messages",
       readOnlyHint: true,
@@ -1257,7 +1257,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "dm_message_send",
-    description: "Send an outbound direct message. Provide EITHER body (text) OR media (a single attachment), not both. The message is queued and delivered asynchronously (returns status: pending). Outside Meta's 24h messaging window, a human agent replying to the participant's own inquiry can pass tag: HUMAN_AGENT (Facebook/Instagram only) — never for promotional or automated content. reply_to_external_id and reply_markup are Telegram-only.",
+    description: "Send an outbound direct message. Provide EITHER body (text) OR media (a single attachment), not both. The message is queued and delivered asynchronously (returns status: pending). Outside Meta's 24h messaging window, a human agent replying to the participant's own inquiry can pass tag: HUMAN_AGENT (Facebook/Instagram only) — never for promotional or automated content. reply_to_external_id and reply_markup are Telegram-only; quick_replies, buttons and card are their Facebook/Instagram equivalent and are rejected on Telegram and Bluesky.",
     annotations: {
       title: "Send Message",
       readOnlyHint: false,
@@ -1295,13 +1295,66 @@ export const TOOL_DEFINITIONS = [
           additionalProperties: true,
           description: "Telegram only. reply_markup payload — inline keyboard, custom reply keyboard, force-reply, or remove-keyboard.",
         },
+        quick_replies: {
+          type: "array",
+          description: "Facebook and Instagram only. Up to 13 tappable chips shown above the participant's composer; they disappear once one is tapped. A tap arrives as an inbound message carrying tapped_action.payload. On Instagram, quick replies only work on a plain-text message — not with media and not with buttons (both are accepted on Facebook).",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Chip label, max 20 characters" },
+              payload: {
+                type: "string",
+                description: "Opaque payload echoed back in tapped_action when tapped, max 1000 characters",
+              },
+            },
+            required: ["title", "payload"],
+          },
+        },
+        buttons: {
+          type: "array",
+          description: "Facebook and Instagram only. Up to 3 buttons attached to the message itself, which stay in the thread. Sent as a Meta generic template whose element title is your body — so body is required and capped at 80 characters, and buttons cannot be combined with media. A postback tap arrives as an inbound message carrying tapped_action.payload.",
+          items: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["web_url", "postback"],
+                description: "web_url opens url; postback sends payload back as an inbound message",
+              },
+              title: { type: "string", description: "Button label, max 20 characters" },
+              url: { type: "string", description: "Required for web_url buttons. Must be an https:// URL." },
+              payload: {
+                type: "string",
+                description: "Required for postback buttons, max 1000 characters",
+              },
+            },
+            required: ["type", "title"],
+          },
+        },
+        card: {
+          type: "object",
+          description: "Facebook and Instagram only. Extra generic-template fields for the card that carries buttons — requires buttons. Renders a richer product-style card.",
+          properties: {
+            subtitle: { type: "string", description: "Secondary line under the body, max 80 characters" },
+            image_url: { type: "string", description: "Card image. Must be an https:// URL." },
+            default_action: {
+              type: "object",
+              description: "Opened when the card itself is tapped.",
+              properties: {
+                type: { type: "string", enum: ["web_url"] },
+                url: { type: "string", description: "Must be an https:// URL" },
+              },
+              required: ["type", "url"],
+            },
+          },
+        },
       },
       required: ["chat_id"],
     },
   },
   {
     name: "dm_message_get",
-    description: "Get a single message by Postproxy hashid or by the platform's external_id.",
+    description: "Get a single message by Postproxy hashid or by the platform's external_id. Outbound messages echo the quick_replies / buttons / card they were sent with; an inbound message created by a tap carries tapped_action: {kind, payload, title}.",
     annotations: {
       title: "Get Message",
       readOnlyHint: true,
@@ -1322,7 +1375,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "dm_message_edit",
-    description: "Edit a previously-sent outbound message on the platform. Telegram only — Facebook and Instagram do not expose outbound edits. Provide body (new text/caption) and/or reply_markup (pass {} to clear the keyboard); at least one is required.",
+    description: "Edit a previously-sent outbound message on the platform. Telegram only — Facebook and Instagram do not expose outbound edits, so Meta quick_replies and buttons cannot be changed after sending. Provide body (new text/caption) and/or reply_markup (pass {} to clear the keyboard); at least one is required.",
     annotations: {
       title: "Edit Message",
       readOnlyHint: false,
@@ -1481,7 +1534,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.13.0",
+      version: "1.14.0",
     },
     {
       capabilities: {

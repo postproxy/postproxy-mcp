@@ -43,7 +43,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.13.0";
+const PACKAGE_VERSION = "1.14.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1147,6 +1147,11 @@ export class PostProxyClient {
     if (params.tag) payload.tag = params.tag;
     if (params.reply_to_external_id) payload.reply_to_external_id = params.reply_to_external_id;
     if (params.reply_markup) payload.reply_markup = params.reply_markup;
+    if (params.quick_replies && params.quick_replies.length > 0) {
+      payload.quick_replies = params.quick_replies;
+    }
+    if (params.buttons && params.buttons.length > 0) payload.buttons = params.buttons;
+    if (params.card) payload.card = params.card;
     return this.request<DirectMessage>(
       "POST",
       `/chats/${encodeURIComponent(chatId)}/messages`,
@@ -1180,6 +1185,15 @@ export class PostProxyClient {
     }
     if (params.reply_markup) {
       formData.append("reply_markup", JSON.stringify(params.reply_markup));
+    }
+    // Bracketed fields, not JSON — the messages endpoint requires an actual
+    // array of objects, and appends per entry in key order so Rack starts a
+    // new hash on each repeat. buttons/card never reach here: they can't be
+    // combined with media (validateDmInteractive rejects that upfront).
+    for (const quickReply of params.quick_replies ?? []) {
+      formData.append("quick_replies[][content_type]", "text");
+      formData.append("quick_replies[][title]", quickReply.title);
+      formData.append("quick_replies[][payload]", quickReply.payload);
     }
 
     const headers: Record<string, string> = {

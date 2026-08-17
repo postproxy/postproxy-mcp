@@ -202,6 +202,186 @@ export const PostPublishSchema = z.object({
 });
 
 /**
+ * Pre-flight validation for the interactive elements of an outbound Meta DM —
+ * quick replies, buttons and the card that carries them. Mirrors the API's
+ * Messages::InteractiveBuilder (including its error wording) so an agent gets
+ * the failure without a round trip; the API re-validates authoritatively.
+ *
+ * Network-specific rules are left to the API: the MCP layer does not know the
+ * chat's network, so "Meta only" and Instagram's stricter combination rules
+ * surface as 422s.
+ *
+ * Returns an error message, or null when the args are valid.
+ */
+const MAX_QUICK_REPLIES = 13;
+const MAX_BUTTONS = 3;
+const MAX_TITLE = 20;
+const MAX_PAYLOAD = 1000;
+const MAX_ELEMENT_TITLE = 80; // Meta's generic-template element title/subtitle cap
+const CARD_KEYS = ["subtitle", "image_url", "default_action"];
+
+export function validateDmInteractive(args: {
+  body?: string;
+  media?: string[];
+  quick_replies?: unknown;
+  buttons?: unknown;
+  card?: unknown;
+}): string | null {
+  const { quick_replies, buttons, card } = args;
+  if (isBlank(quick_replies) && isBlank(buttons) && isBlank(card)) {
+    return null;
+  }
+
+  const hasMedia = Array.isArray(args.media) && args.media.length > 0;
+  const body = typeof args.body === "string" ? args.body : "";
+
+  if (!isBlank(quick_replies)) {
+    if (!isArrayOfObjects(quick_replies)) {
+      return "quick_replies must be an array of objects";
+    }
+    if (quick_replies.length > MAX_QUICK_REPLIES) {
+      return `quick_replies supports up to ${MAX_QUICK_REPLIES} entries, got ${quick_replies.length}`;
+    }
+    for (const [index, entry] of quick_replies.entries()) {
+      const contentType = entry.content_type;
+      if (contentType !== undefined && contentType !== null && contentType !== "" && contentType !== "text") {
+        return `quick_replies[${index}].content_type must be "text"`;
+      }
+      const titleError = validateLabel(`quick_replies[${index}].title`, entry.title, MAX_TITLE);
+      if (titleError) return titleError;
+      const payloadError = validateLabel(`quick_replies[${index}].payload`, entry.payload, MAX_PAYLOAD);
+      if (payloadError) return payloadError;
+    }
+  }
+
+  if (!isBlank(buttons)) {
+    if (!isArrayOfObjects(buttons)) {
+      return "buttons must be an array of objects";
+    }
+    if (buttons.length > MAX_BUTTONS) {
+      return `buttons supports up to ${MAX_BUTTONS} entries, got ${buttons.length}`;
+    }
+    if (!body) {
+      return "body is required when sending buttons";
+    }
+    if (body.length > MAX_ELEMENT_TITLE) {
+      return `body must be ${MAX_ELEMENT_TITLE} characters or fewer when sending buttons, got ${body.length}`;
+    }
+    if (hasMedia) {
+      return "buttons cannot be combined with media";
+    }
+    for (const [index, entry] of buttons.entries()) {
+      if (entry.type !== "web_url" && entry.type !== "postback") {
+        return `buttons[${index}].type must be one of web_url, postback`;
+      }
+      const titleError = validateLabel(`buttons[${index}].title`, entry.title, MAX_TITLE);
+      if (titleError) return titleError;
+
+      if (entry.type === "web_url") {
+        if (isBlank(entry.url)) {
+          return `buttons[${index}].url is required for web_url buttons`;
+        }
+        if (!isHttpsUrl(entry.url)) {
+          return `buttons[${index}].url must be an https:// URL`;
+        }
+      } else {
+        const payloadError = validateLabel(
+          `buttons[${index}].payload`,
+          entry.payload,
+          MAX_PAYLOAD,
+          "is required for postback buttons"
+        );
+        if (payloadError) return payloadError;
+      }
+    }
+  }
+
+  if (!isBlank(card)) {
+    if (!isPlainObject(card)) {
+      return "card must be an object";
+    }
+    if (isBlank(buttons)) {
+      return "card is only supported alongside buttons";
+    }
+    const unknown = Object.keys(card).filter((key) => !CARD_KEYS.includes(key));
+    if (unknown.length > 0) {
+      return `card does not support ${unknown.join(", ")}`;
+    }
+    if (!isBlank(card.subtitle)) {
+      if (typeof card.subtitle !== "string") {
+        return "card.subtitle must be a string";
+      }
+      if (card.subtitle.length > MAX_ELEMENT_TITLE) {
+        return `card.subtitle must be ${MAX_ELEMENT_TITLE} characters or fewer, got ${card.subtitle.length}`;
+      }
+    }
+    if (!isBlank(card.image_url) && !isHttpsUrl(card.image_url)) {
+      return "card.image_url must be an https:// URL";
+    }
+    const defaultAction = card.default_action;
+    if (!isBlank(defaultAction)) {
+      if (!isPlainObject(defaultAction)) {
+        return "card.default_action must be an object";
+      }
+      if (defaultAction.type !== "web_url") {
+        return 'card.default_action.type must be "web_url"';
+      }
+      if (isBlank(defaultAction.url)) {
+        return "card.default_action.url is required";
+      }
+      if (!isHttpsUrl(defaultAction.url)) {
+        return "card.default_action.url must be an https:// URL";
+      }
+    }
+  }
+
+  return null;
+}
+
+function validateLabel(
+  field: string,
+  value: unknown,
+  maxLength: number,
+  requiredSuffix = "is required"
+): string | null {
+  if (isBlank(value)) {
+    return `${field} ${requiredSuffix}`;
+  }
+  if (typeof value !== "string") {
+    return `${field} must be a string`;
+  }
+  if (value.length > maxLength) {
+    return `${field} must be ${maxLength} characters or fewer, got ${value.length}`;
+  }
+  return null;
+}
+
+function isBlank(value: unknown): boolean {
+  if (value === undefined || value === null || value === "") return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (isPlainObject(value)) return Object.keys(value).length === 0;
+  return false;
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isArrayOfObjects(value: unknown): value is Array<Record<string, any>> {
+  return Array.isArray(value) && value.every((entry) => isPlainObject(entry));
+}
+
+function isHttpsUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Validate that a schedule date is in the future
  */
 export function validateScheduleInFuture(schedule: string): boolean {

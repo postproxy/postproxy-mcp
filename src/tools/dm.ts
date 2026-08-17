@@ -6,8 +6,10 @@
  */
 
 import type { PostProxyClient } from "../api/client.js";
+import type { DMButton, DMCard, DMQuickReply } from "../types/index.js";
 import { createError, ErrorCodes } from "../utils/errors.js";
 import { logError } from "../utils/logger.js";
+import { validateDmInteractive } from "../utils/validation.js";
 
 function ok(response: unknown) {
   return {
@@ -143,6 +145,9 @@ export async function handleDmMessageSend(
     tag?: "HUMAN_AGENT";
     reply_to_external_id?: string;
     reply_markup?: Record<string, any>;
+    quick_replies?: DMQuickReply[];
+    buttons?: DMButton[];
+    card?: DMCard;
   }
 ) {
   if (!args.chat_id) {
@@ -159,6 +164,10 @@ export async function handleDmMessageSend(
       "Direct messages support one attachment per send"
     );
   }
+  const interactiveError = validateDmInteractive(args);
+  if (interactiveError) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, interactiveError);
+  }
 
   try {
     const response = await client.sendMessage(args.chat_id, {
@@ -167,6 +176,9 @@ export async function handleDmMessageSend(
       tag: args.tag,
       reply_to_external_id: args.reply_to_external_id,
       reply_markup: args.reply_markup,
+      quick_replies: args.quick_replies,
+      buttons: args.buttons,
+      card: args.card,
     });
     return ok(response);
   } catch (error) {
