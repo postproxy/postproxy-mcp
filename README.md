@@ -1,6 +1,6 @@
-# PostProxy MCP Server
+# Postproxy MCP Server
 
-MCP (Model Context Protocol) server for integrating [PostProxy](https://postproxy.dev/) API with Claude Code. This server provides tools for publishing posts, checking statuses, and managing social media profiles through Claude Code.
+MCP (Model Context Protocol) server for integrating [Postproxy](https://postproxy.dev/) API with Claude Code. This server provides tools for publishing posts, checking statuses, and managing social media profiles through Claude Code.
 
 ## Installation
 
@@ -29,12 +29,12 @@ After installing postproxy-mcp, register it with Claude Code using the `claude m
 claude mcp add --transport stdio postproxy-mcp --env POSTPROXY_API_KEY=your-api-key --env POSTPROXY_BASE_URL=https://api.postproxy.dev/api -- postproxy-mcp
 ```
 
-Replace `your-api-key` with your actual PostProxy API key.
+Replace `your-api-key` with your actual Postproxy API key.
 
 The configuration will be automatically saved to `~/.claude/plugins/`. After running this command:
 
 1. Restart your Claude Code session
-2. Test the connection by asking Claude: "Check my PostProxy authentication status"
+2. Test the connection by asking Claude: "Check my Postproxy authentication status"
 3. If tools are available, Claude will be able to use them automatically
 
 ### Alternative: Interactive Setup
@@ -117,7 +117,7 @@ Answer "what's the status?" in one call — an activity snapshot for a time wind
 **Notes**:
 - **Post counts are posts**, so a post sent to three networks counts once and a thread counts once. `by_platform` counts per-network deliveries, so a 3-item X thread is 3 under `twitter`.
 - **`engagement` is lifetime-to-date for posts published in the window**, not engagement earned during it — it sums each post's newest stats snapshot. A post published minutes ago may have no snapshot yet and won't be in `posts_with_insights`. Keys are the normalized metrics listed in [Stats Fields by Platform](#stats-fields-by-platform).
-- **The `awaiting_reply` counts describe current state**, not the window — they don't change when you change `window`. They look back 30 days, returned as `window.backlog_from`. A comment counts as replied only when the reply came from you (via PostProxy or the profile itself); `chats_awaiting_reply` is derived from message timestamps, since PostProxy has no read/unread state.
+- **The `awaiting_reply` counts describe current state**, not the window — they don't change when you change `window`. They look back 30 days, returned as `window.backlog_from`. A comment counts as replied only when the reply came from you (via Postproxy or the profile itself); `chats_awaiting_reply` is derived from message timestamps, since Postproxy has no read/unread state.
 - `reply_window_closing` counts chats with under 6 hours of their 24h messaging window left. Networks without a window (Telegram, Bluesky) are excluded.
 - `engagement` is `null` when insights are off for the account; `dms` is `null` when DMs are off.
 - Scoped like every other tool: a group-scoped key reports only its group.
@@ -535,7 +535,7 @@ List comments on a published post. Returns paginated top-level comments with nes
 - `from` (string, optional): ISO 8601 date/time — only comments received at or after this point
 - `to` (string, optional): ISO 8601 date/time — only comments received at or before this point
 
-`from`/`to` filter on when PostProxy received the comment, not the platform's `posted_at` (which isn't always populated). A bare date such as `2026-03-25` means that date's start of day. The filter applies to top-level comments only — a comment in range still returns its full `replies` array.
+`from`/`to` filter on when Postproxy received the comment, not the platform's `posted_at` (which isn't always populated). A bare date such as `2026-03-25` means that date's start of day. The filter applies to top-level comments only — a comment in range still returns its full `replies` array.
 
 **Returns**:
 ```json
@@ -850,7 +850,7 @@ List recent post jobs.
 
 `scheduled_at` is `null` for posts that were published immediately. `status` is the raw API status (`draft`, `scheduled`, `processing`, `processed`, …), while `overall_status` folds platform outcomes into a single verdict.
 
-> **Note**: PostProxy's `/posts` API does not return profile identity (profile ID or name) per platform — only the network. Use `profiles_list` to map networks to connected profiles.
+> **Note**: Postproxy's `/posts` API does not return profile identity (profile ID or name) per platform — only the network. Use `profiles_list` to map networks to connected profiles.
 
 ## Example Prompts
 
@@ -1325,7 +1325,7 @@ Show me the last 5 posts I published
 
 ### API Errors
 
-- **API_ERROR**: PostProxy API returned an error. Check the error message for details.
+- **API_ERROR**: Postproxy API returned an error. Check the error message for details.
 - **Timeout**: Request took longer than 30 seconds. Check your network connection and API status.
 
 ### Platform Errors

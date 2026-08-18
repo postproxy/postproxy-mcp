@@ -34,9 +34,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/postproxy/postproxy-mcp"
+    "url": "git+https://github.com/postproxy/postproxy-mcp.git"
   },
-  "homepage": "https://www.postproxy.dev/",
+  "bugs": {
+    "url": "https://github.com/postproxy/postproxy-mcp/issues"
+  },
+  "homepage": "https://postproxy.dev",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
