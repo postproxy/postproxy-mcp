@@ -17,6 +17,7 @@ import {
   handlePostStats,
 } from "./tools/post.js";
 import { handleHistoryList } from "./tools/history.js";
+import { handleSummaryGet } from "./tools/summary.js";
 import { handleUploadCreate } from "./tools/upload.js";
 import {
   handleQueuesList,
@@ -76,6 +77,39 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object",
       properties: {},
+    },
+  },
+  {
+    name: "summary_get",
+    description: "Answer \"what's the status?\" in one call. Returns an activity snapshot for a time window: posts published and failed (plus what's scheduled next), engagement totals summed from each post's latest stats snapshot, comments and reviews received, and DM volume — each broken down per network. Also returns what's still waiting on you: comments and reviews with no reply from you, and DM chats whose newest message is inbound (with how many are about to run out of their 24h messaging window). Prefer this over calling history_list / comments_list / dm_chats_list separately. Two quirks worth knowing: engagement is lifetime-to-date for posts published in the window rather than engagement earned during it, and the awaiting_reply counts describe current state so they don't change with the window (they look back 30 days, returned as window.backlog_from). Post counts are posts — a post sent to three networks counts once — while by_platform counts per-network deliveries. engagement is null when insights are off for the account, dms when DMs are.",
+    annotations: {
+      title: "Get Activity Summary",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        window: {
+          type: "string",
+          enum: ["24h", "7d", "30d"],
+          description: "Time window to report on. Defaults to 24h.",
+        },
+        from: {
+          type: "string",
+          description: "Optional ISO 8601 timestamp (or bare date) starting an explicit range. Overrides window, and the *_previous comparison counts come back null.",
+        },
+        to: {
+          type: "string",
+          description: "Optional ISO 8601 timestamp (or bare date) ending an explicit range. Defaults to now when only from is given.",
+        },
+        profile_group_id: {
+          type: "string",
+          description: "Optional profile group ID (hashid) to report on a single group. Omit to cover every group the key can reach.",
+        },
+      },
     },
   },
   {
@@ -1534,7 +1568,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.14.0",
+      version: "1.15.0",
     },
     {
       capabilities: {
@@ -1560,6 +1594,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
       switch (name) {
         case "auth_status":
           return await handleAuthStatus(client);
+        case "summary_get":
+          return await handleSummaryGet(client, args as any);
         case "profiles_list":
           return await handleProfilesList(client, args as any);
         case "profile_groups_list":

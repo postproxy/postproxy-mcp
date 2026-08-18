@@ -72,6 +72,56 @@ Check authentication status, API configuration, and workspace information.
 }
 ```
 
+### Account Overview
+
+#### `summary_get`
+
+Answer "what's the status?" in one call — an activity snapshot for a time window instead of separate `history_list` / `comments_list` / `dm_chats_list` round trips.
+
+**Parameters**:
+- `window` (string, optional): `24h` (default), `7d`, or `30d`
+- `from` (string, optional): ISO 8601 timestamp or bare date starting an explicit range. Overrides `window`, and the `*_previous` counts come back `null`
+- `to` (string, optional): End of the explicit range. Defaults to now when only `from` is given
+- `profile_group_id` (string, optional): Report on a single group. Omit to cover every group the key can reach
+
+**Returns**:
+```json
+{
+  "window": {
+    "label": "24h",
+    "from": "2026-08-17T09:00:00Z",
+    "to": "2026-08-18T09:00:00Z",
+    "previous_from": "2026-08-16T09:00:00Z",
+    "backlog_from": "2026-07-19T09:00:00Z"
+  },
+  "posts": {
+    "published": 4,
+    "published_previous": 3,
+    "failed": 1,
+    "scheduled_ahead": 6,
+    "next_scheduled_at": "2026-08-18T14:00:00Z",
+    "by_platform": { "instagram": { "published": 4, "failed": 0 } }
+  },
+  "engagement": {
+    "total": { "impressions": 48210, "likes": 1204 },
+    "by_platform": { "instagram": { "impressions": 31002, "likes": 900 } },
+    "posts_with_insights": 14
+  },
+  "comments": { "received": 96, "received_previous": 71, "awaiting_reply": 12, "by_platform": { "instagram": 61 } },
+  "reviews": { "received": 7, "received_previous": 4, "awaiting_reply": 3 },
+  "dms": { "inbound": 41, "outbound": 33, "chats_awaiting_reply": 5, "reply_window_closing": 2 },
+  "api": { "calls": 812, "calls_previous": 640 }
+}
+```
+
+**Notes**:
+- **Post counts are posts**, so a post sent to three networks counts once and a thread counts once. `by_platform` counts per-network deliveries, so a 3-item X thread is 3 under `twitter`.
+- **`engagement` is lifetime-to-date for posts published in the window**, not engagement earned during it — it sums each post's newest stats snapshot. A post published minutes ago may have no snapshot yet and won't be in `posts_with_insights`. Keys are the normalized metrics listed in [Stats Fields by Platform](#stats-fields-by-platform).
+- **The `awaiting_reply` counts describe current state**, not the window — they don't change when you change `window`. They look back 30 days, returned as `window.backlog_from`. A comment counts as replied only when the reply came from you (via PostProxy or the profile itself); `chats_awaiting_reply` is derived from message timestamps, since PostProxy has no read/unread state.
+- `reply_window_closing` counts chats with under 6 hours of their 24h messaging window left. Networks without a window (Telegram, Bluesky) are excluded.
+- `engagement` is `null` when insights are off for the account; `dms` is `null` when DMs are off.
+- Scoped like every other tool: a group-scoped key reports only its group.
+
 ### Profile Management
 
 #### `profile_groups_list`

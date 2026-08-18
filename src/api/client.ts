@@ -38,12 +38,13 @@ import type {
   EditMessageParams,
   ReactMessageParams,
   UploadResponse,
+  SummaryResponse,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.14.0";
+const PACKAGE_VERSION = "1.15.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -799,6 +800,33 @@ export class PostProxyClient {
     const qs = queryParams.toString();
     const path = `/profiles/${params.profile_id}/stats${qs ? `?${qs}` : ""}`;
     return this.request<ProfileStatsResponse>("GET", path);
+  }
+
+  /**
+   * Activity snapshot across posts, engagement, comments, reviews and DMs.
+   * `window` is one of 24h / 7d / 30d; from/to override it with an explicit range.
+   */
+  async getSummary(params: {
+    window?: string;
+    from?: string;
+    to?: string;
+    profile_group_id?: string;
+  } = {}): Promise<SummaryResponse> {
+    const queryParams = new URLSearchParams();
+    if (params.window) {
+      queryParams.append("window", params.window);
+    }
+    if (params.from) {
+      queryParams.append("from", params.from);
+    }
+    if (params.to) {
+      queryParams.append("to", params.to);
+    }
+    if (params.profile_group_id) {
+      queryParams.append("profile_group_id", params.profile_group_id);
+    }
+    const qs = queryParams.toString();
+    return this.request<SummaryResponse>("GET", `/summary${qs ? `?${qs}` : ""}`);
   }
 
   /**

@@ -653,3 +653,54 @@ export interface UploadResponse {
   upload_url: string; // tmpfiles.postproxy.dev URL the file is uploaded to
   expires_in: number; // seconds until the upload URL expires
 }
+
+/**
+ * Activity snapshot returned by GET /api/summary.
+ *
+ * The engagement objects are open maps — the metric keys vary by network — and
+ * `engagement` / `dms` are null when those features are off for the account.
+ */
+export interface SummaryResponse {
+  window: {
+    label: string | null;
+    from: string;
+    to: string;
+    previous_from: string | null;
+    backlog_from: string;
+  };
+  posts: {
+    published: number;
+    published_previous: number | null;
+    failed: number;
+    scheduled_ahead: number;
+    next_scheduled_at: string | null;
+    by_platform: Record<string, { published: number; failed: number }>;
+  };
+  engagement: {
+    total: Record<string, number>;
+    by_platform: Record<string, Record<string, number>>;
+    posts_with_insights: number;
+    insights_capped_at?: number;
+  } | null;
+  comments: {
+    received: number;
+    received_previous: number | null;
+    awaiting_reply: number;
+    by_platform: Record<string, number>;
+  };
+  reviews: {
+    received: number;
+    received_previous: number | null;
+    awaiting_reply: number;
+  };
+  dms: {
+    inbound: number;
+    outbound: number;
+    chats_awaiting_reply: number;
+    reply_window_closing: number;
+  } | null;
+  api: {
+    calls: number;
+    calls_previous: number | null;
+  };
+}

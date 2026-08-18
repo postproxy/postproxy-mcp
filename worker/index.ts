@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.14.0";
+const PACKAGE_VERSION = "1.15.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -584,6 +584,20 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(response, null, 2);
   }
 
+  private async handleSummaryGet(args: any): Promise<string> {
+    this.getApiKey();
+
+    const queryParams = new URLSearchParams();
+    if (args?.window) queryParams.append("window", args.window);
+    if (args?.from) queryParams.append("from", args.from);
+    if (args?.to) queryParams.append("to", args.to);
+    if (args?.profile_group_id) queryParams.append("profile_group_id", args.profile_group_id);
+
+    const qs = queryParams.toString();
+    const response = await this.apiRequest<any>("GET", `/summary${qs ? `?${qs}` : ""}`);
+    return JSON.stringify(response, null, 2);
+  }
+
   private async handleQueuesList(args: any): Promise<string> {
     this.getApiKey();
     const path = args?.profile_group_id
@@ -1046,6 +1060,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     switch (name) {
       case "auth_status":
         return await this.handleAuthStatus();
+      case "summary_get":
+        return await this.handleSummaryGet(args);
       case "profiles_list":
         return await this.handleProfilesList(args);
       case "profile_groups_list":
