@@ -13,7 +13,8 @@
     "dev": "tsc --watch",
     "dev:worker": "wrangler dev",
     "deploy": "wrangler deploy",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "node --test 'test/*.test.mjs'"
   },
   "keywords": [
     "mcp",

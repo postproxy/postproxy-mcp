@@ -1177,6 +1177,9 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       case "notifications/initialized":
         return null;
 
+      case "ping":
+        return { jsonrpc: "2.0", result: {}, id };
+
       case "tools/list":
         return {
           jsonrpc: "2.0",
@@ -1298,7 +1301,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           transport: "streamable-http",
           endpoints: { mcp: "/mcp (POST) - Streamable HTTP transport" },
           documentation: "https://postproxy.dev/getting-started/authentication/",
-          authentication: "Required on /mcp: 'Authorization: Bearer YOUR_API_KEY'",
+          authentication:
+            "Handshake (initialize/ping) is public; tools/list and tools/call on /mcp require 'Authorization: Bearer YOUR_API_KEY'",
           tools: TOOL_DEFINITIONS.map((t) => t.name),
         },
         { headers: this.corsHeaders }
@@ -1318,11 +1322,15 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       this.apiKey = request.headers.get("X-PostProxy-API-Key") || url.searchParams.get("api_key");
     }
 
-    // Require auth for the MCP endpoint. The RFC 9728 WWW-Authenticate header
-    // points MCP clients (e.g. Claude) at the protected-resource metadata so
-    // they can discover the authorization server and run the OAuth/DCR flow.
-    if (!this.apiKey) {
-      return new Response(
+    // Auth model: the protocol handshake (initialize/initialized/ping) is
+    // public so MCP clients and auditors can read the server's declared
+    // capabilities before authenticating. Everything else — tools/list,
+    // tools/call, and any future method — requires an API key. The RFC 9728
+    // WWW-Authenticate header points MCP clients (e.g. Claude) at the
+    // protected-resource metadata so they can discover the authorization
+    // server and run the OAuth/DCR flow.
+    const unauthorized = () =>
+      new Response(
         JSON.stringify({
           error:
             "Missing API key. Provide via Authorization header: 'Authorization: Bearer YOUR_API_KEY'",
@@ -1336,12 +1344,29 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           },
         }
       );
-    }
 
     // Handle POST requests (MCP JSON-RPC)
     if (request.method === "POST") {
+      let body: any;
       try {
-        const body = await request.json();
+        body = await request.json();
+      } catch (e: any) {
+        return Response.json(
+          {
+            jsonrpc: "2.0",
+            error: { code: -32700, message: "Parse error" },
+            id: null,
+          },
+          { status: 400, headers: this.corsHeaders }
+        );
+      }
+
+      const PUBLIC_METHODS = new Set(["initialize", "notifications/initialized", "ping"]);
+      if (!this.apiKey && !PUBLIC_METHODS.has(body?.method)) {
+        return unauthorized();
+      }
+
+      try {
         const result = await this.handleMcpRequest(body);
 
         if (result === null) {
@@ -1353,12 +1378,16 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return Response.json(
           {
             jsonrpc: "2.0",
-            error: { code: -32700, message: "Parse error" },
-            id: null,
+            error: { code: -32603, message: `Internal error: ${e.message}` },
+            id: body?.id ?? null,
           },
-          { status: 400, headers: this.corsHeaders }
+          { status: 500, headers: this.corsHeaders }
         );
       }
+    }
+
+    if (!this.apiKey) {
+      return unauthorized();
     }
 
     // GET request - return server info
