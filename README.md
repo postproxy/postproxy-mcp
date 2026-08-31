@@ -166,7 +166,7 @@ List all available social media profiles for posting.
 
 #### `profiles_placements`
 
-List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. For Telegram profiles, placements are channels the bot can post to. Available for `facebook`, `linkedin`, `pinterest`, and `telegram` profiles.
+List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. For Telegram profiles, placements are channels the bot can post to. For Google Business profiles, placements are locations, returned as full resource paths (`accounts/X/locations/Y`) to pass as `location_id`. Available for `facebook`, `linkedin`, `pinterest`, `telegram`, and `google_business` profiles.
 
 **Parameters**:
 - `profile_id` (string, required): Profile hashid
@@ -193,6 +193,7 @@ List available placements for a profile. For Facebook profiles, placements are b
   - **Facebook**: defaults to a random connected page (if only one page is connected, no need to set a placement ID)
   - **Pinterest**: it fails
   - **Telegram**: it fails — `chat_id` is required on every post
+  - **Google Business**: it fails — `location_id` is required on every post and on every `google_business_*` tool
 
 #### `profiles_stats`
 
@@ -200,7 +201,7 @@ Get the follower/engagement timeseries for a profile. Snapshots are captured rou
 
 **Parameters**:
 - `profile_id` (string, required): Profile hashid
-- `placement_id` (string, conditional): **Required** for `facebook`, `linkedin`, and `telegram` profiles. Get it from `profiles_placements`. Omit for `instagram`, `threads`, `youtube`, `twitter`, `tiktok`, `pinterest`, and `bluesky`.
+- `placement_id` (string, conditional): **Required** for `facebook`, `linkedin`, `telegram`, and `google_business` profiles. Get it from `profiles_placements`. Omit for `instagram`, `threads`, `youtube`, `twitter`, `tiktok`, `pinterest`, and `bluesky`.
 - `from` (string, optional): ISO 8601 timestamp — only include snapshots recorded at or after this time
 - `to` (string, optional): ISO 8601 timestamp — only include snapshots recorded at or before this time
 
@@ -856,6 +857,87 @@ List recent post jobs.
 `scheduled_at` is `null` for posts that were published immediately. `status` is the raw API status (`draft`, `scheduled`, `processing`, `processed`, …), while `overall_status` folds platform outcomes into a single verdict.
 
 > **Note**: Postproxy's `/posts` API does not return profile identity (profile ID or name) per platform — only the network. Use `profiles_list` to map networks to connected profiles.
+
+### Google Business Profile Management
+
+These edit the Google business listing itself — hours, attributes, services, food menus, action links and profile photos — as opposed to publishing local posts to it (that's `post_publish` with platform `google_business`).
+
+Three rules apply to every tool in this group:
+
+1. **`location_id` is always required.** It's the full Google resource path `accounts/X/locations/Y`, returned by `profiles_placements`.
+2. **Updates are field-masked.** Each write takes a `fields` array naming exactly what's being replaced. Anything named in `fields` but absent from the payload is **cleared**, and nested objects are replaced wholesale rather than merged. Always read before you patch.
+3. **Availability varies by category and region.** Attributes, service lists, food menus and action link types differ per listing. List what's available first; a location that isn't eligible returns `422`.
+
+Payloads use Google's own shapes and camelCased keys in both directions, so a response can be sent straight back as a request body.
+
+| Tool | Purpose |
+|------|---------|
+| `google_business_location_get` | Read the listing — name, description, website, phones, categories, address, hours, service area, metadata |
+| `google_business_location_update` | Update listing fields (`title`, `websiteUri`, `phoneNumbers`, `categories`, `storefrontAddress`, `serviceArea`, `labels`, `latlng`, `openInfo`, `profile`, `storeCode`) |
+| `google_business_categories_list` | Resolve category resource names (`categories/gcid:*`) for a region — needed for any `categories` patch |
+| `google_business_hours_update` | Set `regularHours`, `specialHours` and `moreHours` |
+| `google_business_attributes_get` | Read attributes currently set |
+| `google_business_attributes_available` | List which attributes this listing can set, with value types |
+| `google_business_attributes_update` | Set attributes |
+| `google_business_service_list_get` | Read the service list |
+| `google_business_service_list_update` | Replace the service list (needs `metadata.canModifyServiceList`) |
+| `google_business_food_menus_get` | Read food menus (restaurant-like categories only) |
+| `google_business_food_menus_update` | Replace food menus (needs `metadata.canHaveFoodMenus`) |
+| `google_business_place_action_links_list` | List action buttons ("Book online", "Order online") |
+| `google_business_place_action_link_create` | Add an action button |
+| `google_business_place_action_link_update` | Update an action button |
+| `google_business_place_action_link_delete` | Remove an action button |
+| `google_business_media_list` | List profile photos and videos |
+| `google_business_media_create` | Add a photo or video |
+| `google_business_media_delete` | Remove a photo or video |
+
+#### Typical flow
+
+```
+1. profiles_placements                    → get location_id
+2. google_business_location_get           → read current state
+3. google_business_attributes_available   → see what this listing accepts
+4. google_business_attributes_update      → patch only what changed
+```
+
+#### Attribute value shapes
+
+`google_business_attributes_available` returns a `valueType` per attribute, which decides the shape to send back:
+
+| valueType | Shape |
+|-----------|-------|
+| `BOOL` | `{ "name": "attributes/offers_online_appointments", "values": [true] }` |
+| `URL` | `{ "name": "attributes/url_linkedin", "uriValues": [{ "uri": "https://..." }] }` |
+| `ENUM` | `{ "name": "attributes/preferred_messaging_service", "repeatedEnumValue": { "setValues": ["TOKEN"] } }` |
+
+`attribute_mask` defaults to exactly the names you send, so a partial update never clears attributes you left out.
+
+#### Hours
+
+Times accept either `"09:00"` / `"09:00:00"` strings or Google's `{ "hours": 9, "minutes": 0 }` objects — both are normalized before the call. Read current hours from `google_business_location_get`; each block named in `fields` is replaced entirely.
+
+```json
+{
+  "fields": ["regularHours"],
+  "regularHours": {
+    "periods": [
+      { "openDay": "MONDAY", "openTime": "09:00", "closeDay": "MONDAY", "closeTime": "18:00" }
+    ]
+  }
+}
+```
+
+#### Media
+
+Google downloads the file from `media_url` itself — there is no upload step, so the URL must be publicly reachable `https` (not a short-lived signed URL, not localhost). Images need at least 250×250 and at most 5MB. `category` defaults to `ADDITIONAL`; use `COVER` or `LOGO` only when you intend to change the profile header or logo.
+
+#### Reading empty results
+
+Google omits keys rather than returning empty values: a listing with no attributes returns `{ "name": "..." }` with no `attributes` key at all, and the same applies to `serviceItems`, `placeActionLinks` and boolean flags like `isPreferred`. Treat absent as empty.
+
+#### Analytics
+
+Google Business location analytics come through the standard `profiles_stats` tool — pass the `location_id` as `placement_id`. Metrics are Search and Maps impressions (desktop and mobile), website clicks, call clicks, direction requests, conversations, bookings, food orders and food-menu clicks. Google Business has no follower count, and Google exposes no per-post analytics for local posts.
 
 ## Example Prompts
 

@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.16.0";
+const PACKAGE_VERSION = "1.17.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -1064,6 +1064,187 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(response, null, 2);
   }
 
+  // ─── Google Business Profile ───────────────────────────────────────
+  //
+  // Google's shapes pass through untouched in both directions, so a caller can
+  // PATCH back what it GET'd. Every call needs location_id (the placement id
+  // from profiles_placements).
+
+  private googleBusinessPath(
+    profileId: string,
+    action: string,
+    query: Record<string, unknown> = {}
+  ): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, String(value));
+      }
+    }
+    const qs = params.toString();
+    return `/profiles/${encodeURIComponent(profileId)}/google_business/${action}${qs ? `?${qs}` : ""}`;
+  }
+
+  private requireGoogleBusinessArgs(args: any, keys: string[]): void {
+    for (const key of keys) {
+      const value = args?.[key];
+      if (value === undefined || value === null || value === "") {
+        throw new Error(`${key} is required`);
+      }
+    }
+  }
+
+  private async googleBusinessGet(args: any, action: string, required: string[], query: Record<string, unknown>): Promise<string> {
+    this.requireGoogleBusinessArgs(args, ["profile_id", ...required]);
+    const response = await this.apiRequest<any>(
+      "GET",
+      this.googleBusinessPath(args.profile_id, action, query)
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async googleBusinessWrite(args: any, method: string, action: string, required: string[]): Promise<string> {
+    this.requireGoogleBusinessArgs(args, ["profile_id", ...required]);
+    const { profile_id, ...body } = args;
+    const response = await this.apiRequest<any>(
+      method,
+      this.googleBusinessPath(profile_id, action),
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  // DELETE args go in the query string: apiRequest only serializes bodies for
+  // POST/PUT/PATCH, and DELETE bodies are routinely dropped in transit.
+  private async googleBusinessDelete(args: any, action: string, required: string[], query: Record<string, unknown>): Promise<string> {
+    this.requireGoogleBusinessArgs(args, ["profile_id", ...required]);
+    const response = await this.apiRequest<any>(
+      "DELETE",
+      this.googleBusinessPath(args.profile_id, action, query)
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleGoogleBusinessLocationGet(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "location", ["location_id"], {
+      location_id: args?.location_id,
+      read_mask: args?.read_mask,
+    });
+  }
+
+  private async handleGoogleBusinessLocationUpdate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "PATCH", "update_location", ["location_id", "fields"]);
+  }
+
+  private async handleGoogleBusinessCategoriesList(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "available_location_categories", ["location_id", "region_code"], {
+      location_id: args?.location_id,
+      region_code: args?.region_code,
+      language_code: args?.language_code,
+      filter: args?.filter,
+      view: args?.view,
+      page_size: args?.page_size,
+      page_token: args?.page_token,
+    });
+  }
+
+  private async handleGoogleBusinessHoursUpdate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "PATCH", "update_hours", ["location_id", "fields"]);
+  }
+
+  private async handleGoogleBusinessAttributesGet(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "attributes", ["location_id"], {
+      location_id: args?.location_id,
+    });
+  }
+
+  private async handleGoogleBusinessAttributesAvailable(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "available_attributes", ["location_id"], {
+      location_id: args?.location_id,
+      category_name: args?.category_name,
+      region_code: args?.region_code,
+      language_code: args?.language_code,
+      show_all: args?.show_all,
+      page_size: args?.page_size,
+      page_token: args?.page_token,
+    });
+  }
+
+  private async handleGoogleBusinessAttributesUpdate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "PATCH", "update_attributes", ["location_id", "attributes"]);
+  }
+
+  private async handleGoogleBusinessServiceListGet(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "service_list", ["location_id"], {
+      location_id: args?.location_id,
+    });
+  }
+
+  private async handleGoogleBusinessServiceListUpdate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "PATCH", "update_service_list", ["location_id", "serviceItems"]);
+  }
+
+  private async handleGoogleBusinessFoodMenusGet(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "food_menus", ["location_id"], {
+      location_id: args?.location_id,
+      fields: Array.isArray(args?.fields) ? args.fields.join(",") : args?.fields,
+    });
+  }
+
+  private async handleGoogleBusinessFoodMenusUpdate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "PATCH", "update_food_menus", ["location_id", "menus"]);
+  }
+
+  private async handleGoogleBusinessPlaceActionLinksList(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "place_action_links", ["location_id"], {
+      location_id: args?.location_id,
+      page_size: args?.page_size,
+      page_token: args?.page_token,
+    });
+  }
+
+  private async handleGoogleBusinessPlaceActionLinkCreate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "POST", "create_place_action_link", [
+      "location_id",
+      "uri",
+      "place_action_type",
+    ]);
+  }
+
+  private async handleGoogleBusinessPlaceActionLinkUpdate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "PATCH", "update_place_action_link", [
+      "location_id",
+      "name",
+      "fields",
+    ]);
+  }
+
+  private async handleGoogleBusinessPlaceActionLinkDelete(args: any): Promise<string> {
+    return this.googleBusinessDelete(args, "delete_place_action_link", ["location_id", "name"], {
+      location_id: args?.location_id,
+      name: args?.name,
+    });
+  }
+
+  private async handleGoogleBusinessMediaList(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "media", ["location_id"], {
+      location_id: args?.location_id,
+      page_size: args?.page_size,
+      page_token: args?.page_token,
+    });
+  }
+
+  private async handleGoogleBusinessMediaCreate(args: any): Promise<string> {
+    return this.googleBusinessWrite(args, "POST", "create_media", ["location_id", "media_url"]);
+  }
+
+  private async handleGoogleBusinessMediaDelete(args: any): Promise<string> {
+    return this.googleBusinessDelete(args, "delete_media", ["location_id", "media_name"], {
+      location_id: args?.location_id,
+      media_name: args?.media_name,
+    });
+  }
+
   // ─── MCP JSON-RPC Handler ──────────────────────────────────────────
 
   private async handleToolCall(name: string, args: any): Promise<string> {
@@ -1160,6 +1341,42 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleDmChatUnarchive(args);
       case "dm_comment_private_reply":
         return await this.handleDmCommentPrivateReply(args);
+      case "google_business_location_get":
+        return await this.handleGoogleBusinessLocationGet(args);
+      case "google_business_location_update":
+        return await this.handleGoogleBusinessLocationUpdate(args);
+      case "google_business_categories_list":
+        return await this.handleGoogleBusinessCategoriesList(args);
+      case "google_business_hours_update":
+        return await this.handleGoogleBusinessHoursUpdate(args);
+      case "google_business_attributes_get":
+        return await this.handleGoogleBusinessAttributesGet(args);
+      case "google_business_attributes_available":
+        return await this.handleGoogleBusinessAttributesAvailable(args);
+      case "google_business_attributes_update":
+        return await this.handleGoogleBusinessAttributesUpdate(args);
+      case "google_business_service_list_get":
+        return await this.handleGoogleBusinessServiceListGet(args);
+      case "google_business_service_list_update":
+        return await this.handleGoogleBusinessServiceListUpdate(args);
+      case "google_business_food_menus_get":
+        return await this.handleGoogleBusinessFoodMenusGet(args);
+      case "google_business_food_menus_update":
+        return await this.handleGoogleBusinessFoodMenusUpdate(args);
+      case "google_business_place_action_links_list":
+        return await this.handleGoogleBusinessPlaceActionLinksList(args);
+      case "google_business_place_action_link_create":
+        return await this.handleGoogleBusinessPlaceActionLinkCreate(args);
+      case "google_business_place_action_link_update":
+        return await this.handleGoogleBusinessPlaceActionLinkUpdate(args);
+      case "google_business_place_action_link_delete":
+        return await this.handleGoogleBusinessPlaceActionLinkDelete(args);
+      case "google_business_media_list":
+        return await this.handleGoogleBusinessMediaList(args);
+      case "google_business_media_create":
+        return await this.handleGoogleBusinessMediaCreate(args);
+      case "google_business_media_delete":
+        return await this.handleGoogleBusinessMediaDelete(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

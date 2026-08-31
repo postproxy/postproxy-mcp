@@ -57,6 +57,26 @@ import {
   handleDmChatUnarchive,
   handleDmCommentPrivateReply,
 } from "./tools/dm.js";
+import {
+  handleGoogleBusinessLocationGet,
+  handleGoogleBusinessLocationUpdate,
+  handleGoogleBusinessCategoriesList,
+  handleGoogleBusinessHoursUpdate,
+  handleGoogleBusinessAttributesGet,
+  handleGoogleBusinessAttributesAvailable,
+  handleGoogleBusinessAttributesUpdate,
+  handleGoogleBusinessServiceListGet,
+  handleGoogleBusinessServiceListUpdate,
+  handleGoogleBusinessFoodMenusGet,
+  handleGoogleBusinessFoodMenusUpdate,
+  handleGoogleBusinessPlaceActionLinksList,
+  handleGoogleBusinessPlaceActionLinkCreate,
+  handleGoogleBusinessPlaceActionLinkUpdate,
+  handleGoogleBusinessPlaceActionLinkDelete,
+  handleGoogleBusinessMediaList,
+  handleGoogleBusinessMediaCreate,
+  handleGoogleBusinessMediaDelete,
+} from "./tools/google-business.js";
 import { createError, ErrorCodes } from "./utils/errors.js";
 import { logToolCall } from "./utils/logger.js";
 
@@ -585,7 +605,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "profiles_stats",
-    description: "Get the follower/engagement timeseries for a profile. Returns daily snapshots (captured every ~23h). placement_id is required for facebook, linkedin, and telegram profiles (get it from profiles_placements); omit for other networks. Fields in records[].stats are platform-native and not normalized.",
+    description: "Get the follower/engagement timeseries for a profile. Returns daily snapshots (captured every ~23h). placement_id is required for facebook, linkedin, telegram, and google_business profiles (get it from profiles_placements); omit for other networks. Fields in records[].stats are platform-native and not normalized. For google_business the series is per location: impressions, website clicks, call clicks, direction requests and conversations — there is no follower count.",
     annotations: {
       title: "Get Profile Stats",
       readOnlyHint: true,
@@ -601,7 +621,7 @@ export const TOOL_DEFINITIONS = [
         },
         placement_id: {
           type: "string",
-          description: "Required for facebook, linkedin, and telegram profiles. Get it from profiles_placements. Omit for instagram/threads/youtube/twitter/tiktok/pinterest/bluesky.",
+          description: "Required for facebook, linkedin, telegram, and google_business profiles. Get it from profiles_placements. Omit for instagram/threads/youtube/twitter/tiktok/pinterest/bluesky.",
         },
         from: {
           type: "string",
@@ -1615,13 +1635,470 @@ export const TOOL_DEFINITIONS = [
       required: ["post_id", "comment_id", "profile_id", "text"],
     },
   },
+  {
+    name: "google_business_location_get",
+    description: "Read a Google Business Profile location — name, description, website, phones, categories, address, hours, service area, service items, and metadata. This is the business listing itself, not posts published to it. Read this before any google_business_*_update: Google's updates are field-masked, so you patch back objects you fetched here.",
+    annotations: {
+      title: "Get Google Business Location",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: {
+          type: "string",
+          description: "Full Google resource path 'accounts/X/locations/Y'. Get it from profiles_placements.",
+        },
+        read_mask: {
+          type: "string",
+          description: "Optional comma-separated Google field paths (e.g. 'name,title,websiteUri,metadata'). Defaults to the full profile-oriented field set.",
+        },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "google_business_location_update",
+    description: "Update fields on a Google Business Profile location. `fields` names exactly what you're replacing — anything named there but missing from the payload is CLEARED, and nested objects are replaced wholesale, not merged. Read with google_business_location_get first. Hours and the service list have their own tools.",
+    annotations: {
+      title: "Update Google Business Location",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        fields: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["title", "storeCode", "websiteUri", "phoneNumbers", "categories", "storefrontAddress", "serviceArea", "labels", "latlng", "openInfo", "profile"],
+          },
+          description: "Which fields to replace. Send a matching value for each one.",
+        },
+        title: { type: "string", description: "Business name" },
+        storeCode: { type: "string", description: "Your own external identifier for the location" },
+        websiteUri: { type: "string", description: "Public website URL" },
+        phoneNumbers: { type: "object", description: "Google PhoneNumbers object, e.g. { primaryPhone, additionalPhones[] }" },
+        categories: { type: "object", description: "Google Categories object. Category values are resource names like 'categories/gcid:software_company' — resolve them with google_business_categories_list." },
+        storefrontAddress: { type: "object", description: "Google PostalAddress object" },
+        serviceArea: { type: "object", description: "Google ServiceAreaBusiness object" },
+        labels: { type: "array", items: { type: "string" }, description: "Free-form labels, not shown publicly" },
+        latlng: { type: "object", description: "{ latitude, longitude }" },
+        openInfo: { type: "object", description: "Google OpenInfo object, e.g. { status: 'OPEN' }" },
+        profile: { type: "object", description: "{ description }. Business description, max 750 characters. Replaces the whole profile object." },
+      },
+      required: ["profile_id", "location_id", "fields"],
+    },
+  },
+  {
+    name: "google_business_categories_list",
+    description: "Resolve Google business category resource names (e.g. 'categories/gcid:software_company') for a region. Category patches need these resource names, not display names, and the available set differs per country. Use `filter` to search by display name rather than paging thousands of results.",
+    annotations: {
+      title: "List Google Business Categories",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        region_code: { type: "string", description: "CLDR region code, e.g. 'US', 'DE'" },
+        language_code: { type: "string", description: "BCP-47 code for display names. Defaults to 'en'." },
+        filter: { type: "string", description: "Google filter expression, e.g. \"displayName=software\"" },
+        view: { type: "string", enum: ["BASIC", "FULL"], description: "BASIC (default) returns names only; FULL includes service types and hours types." },
+        page_size: { type: "number", description: "1-100. Values above 100 are clamped." },
+        page_token: { type: "string", description: "From a previous response's nextPageToken" },
+      },
+      required: ["profile_id", "location_id", "region_code"],
+    },
+  },
+  {
+    name: "google_business_hours_update",
+    description: "Set opening hours on a Google Business Profile location. Times accept either \"09:00\"/\"09:00:00\" strings or Google's { hours, minutes } objects. Read current hours from google_business_location_get — each block you name in `fields` is replaced entirely.",
+    annotations: {
+      title: "Update Google Business Hours",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        fields: {
+          type: "array",
+          items: { type: "string", enum: ["regularHours", "specialHours", "moreHours"] },
+          description: "Which hour blocks to replace. At least one matching block must be sent.",
+        },
+        regularHours: {
+          type: "object",
+          description: "{ periods: [{ openDay, openTime, closeDay, closeTime }] }. Days are MONDAY..SUNDAY. A day with no period is closed.",
+        },
+        specialHours: {
+          type: "object",
+          description: "{ specialHourPeriods: [{ startDate: {year,month,day}, endDate, openTime, closeTime, closed }] } for holidays and exceptions.",
+        },
+        moreHours: {
+          type: "array",
+          description: "Named hour sets, e.g. [{ hoursTypeId: 'DELIVERY', periods: [...] }]. Valid hoursTypeIds come from the category (see google_business_categories_list with view=FULL).",
+        },
+      },
+      required: ["profile_id", "location_id", "fields"],
+    },
+  },
+  {
+    name: "google_business_attributes_get",
+    description: "Read the attributes currently set on a Google Business Profile location (payments, accessibility, service options, social links). Note Google omits the `attributes` key entirely when none are set rather than returning an empty array.",
+    annotations: {
+      title: "Get Google Business Attributes",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "google_business_attributes_available",
+    description: "List which attributes a location can actually set, with their value types. Valid attributes depend on the primary category and region, so ALWAYS call this before google_business_attributes_update. Two modes: by location (the default — omit region_code and language_code, Google takes them from the listing) or by category_name (then region_code is required).",
+    annotations: {
+      title: "List Available Google Business Attributes",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        category_name: {
+          type: "string",
+          description: "Look up by category instead of by location, e.g. 'categories/gcid:restaurant'. Requires region_code.",
+        },
+        region_code: { type: "string", description: "CLDR region code. Only valid together with category_name." },
+        language_code: { type: "string", description: "BCP-47 code for display names. Only valid together with category_name." },
+        show_all: { type: "boolean", description: "Return metadata for every attribute Google knows, not just this location's" },
+        page_size: { type: "number", description: "1-200 (default 200)" },
+        page_token: { type: "string", description: "From a previous response's nextPageToken" },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "google_business_attributes_update",
+    description: "Set attributes on a Google Business Profile location. Value shape depends on the attribute's valueType from google_business_attributes_available: BOOL uses \"values\": [true], URL uses \"uriValues\": [{ \"uri\": \"...\" }], ENUM uses \"repeatedEnumValue\": { \"setValues\": [\"TOKEN\"] }. attribute_mask defaults to exactly the names you send, so untouched attributes are preserved.",
+    annotations: {
+      title: "Update Google Business Attributes",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        attributes: {
+          type: "array",
+          description: "Attribute objects, each with a `name` (e.g. 'attributes/url_linkedin') and a value field matching its type.",
+          items: { type: "object" },
+        },
+        attribute_mask: {
+          type: "array",
+          items: { type: "string" },
+          description: "Attribute names to replace. Defaults to the names in `attributes`. Widen it deliberately to clear an attribute — anything listed here but absent from `attributes` is removed.",
+        },
+      },
+      required: ["profile_id", "location_id", "attributes"],
+    },
+  },
+  {
+    name: "google_business_service_list_get",
+    description: "Read the services offered by a Google Business Profile location. Editable only when the location's metadata.canModifyServiceList is true.",
+    annotations: {
+      title: "Get Google Business Service List",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "google_business_service_list_update",
+    description: "Replace the service list on a Google Business Profile location. This is a full replacement, not a merge — send the complete list. Items are either { structuredServiceItem: { serviceTypeId } } using a serviceTypeId from the location's category, or { freeFormServiceItem: { category, label: { displayName, languageCode } } }. Fails with 422 when metadata.canModifyServiceList is false.",
+    annotations: {
+      title: "Update Google Business Service List",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        serviceItems: {
+          type: "array",
+          description: "The complete service list. Read the current one first and edit those objects — accepted fields vary by location.",
+          items: { type: "object" },
+        },
+      },
+      required: ["profile_id", "location_id", "serviceItems"],
+    },
+  },
+  {
+    name: "google_business_food_menus_get",
+    description: "Read food menus for a Google Business Profile location. Restaurant-like categories only — other locations return 422 with FAILED_PRECONDITION, which is expected rather than an error to retry.",
+    annotations: {
+      title: "Get Google Business Food Menus",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        fields: {
+          type: "array",
+          items: { type: "string", enum: ["name", "menus"] },
+          description: "Optional read mask",
+        },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "google_business_food_menus_update",
+    description: "Replace the food menus on a Google Business Profile location. Full replacement, not a merge. Structure is menu -> sections -> items; every label carries a languageCode and prices need currencyCode and units. Requires metadata.canHaveFoodMenus on the location, otherwise 422.",
+    annotations: {
+      title: "Update Google Business Food Menus",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        menus: {
+          type: "array",
+          description: "The complete menu list, e.g. [{ labels: [{ displayName, languageCode }], sections: [{ labels, items: [{ labels, attributes: { price: { currencyCode, units } } }] }] }]",
+          items: { type: "object" },
+        },
+      },
+      required: ["profile_id", "location_id", "menus"],
+    },
+  },
+  {
+    name: "google_business_place_action_links_list",
+    description: "List the action links on a Google Business Profile location — the 'Book online', 'Order online' and similar buttons. Google omits the placeActionLinks key entirely when there are none.",
+    annotations: {
+      title: "List Google Business Place Action Links",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        page_size: { type: "number", description: "1-100 (default 100)" },
+        page_token: { type: "string", description: "From a previous response's nextPageToken" },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "google_business_place_action_link_create",
+    description: "Add an action button to a Google Business Profile location. Which place_action_type values a location accepts varies by category. Google keys the link off (location, uri, placeActionType), so creating the same combination twice returns the existing link rather than a duplicate.",
+    annotations: {
+      title: "Create Google Business Place Action Link",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        uri: { type: "string", description: "Where the button goes" },
+        place_action_type: {
+          type: "string",
+          enum: ["APPOINTMENT", "ONLINE_APPOINTMENT", "DINING_RESERVATION", "FOOD_ORDERING", "FOOD_DELIVERY", "FOOD_TAKEOUT", "SHOP_ONLINE"],
+          description: "Kind of action the button performs",
+        },
+        is_preferred: {
+          type: "boolean",
+          description: "Make this the preferred link for its type. Only one link per type per location can be preferred.",
+        },
+      },
+      required: ["profile_id", "location_id", "uri", "place_action_type"],
+    },
+  },
+  {
+    name: "google_business_place_action_link_update",
+    description: "Update an existing action link on a Google Business Profile location. `name` is the full resource path from google_business_place_action_links_list and must belong to this location.",
+    annotations: {
+      title: "Update Google Business Place Action Link",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        name: { type: "string", description: "Link resource name 'locations/Y/placeActionLinks/Z'" },
+        fields: {
+          type: "array",
+          items: { type: "string", enum: ["uri", "placeActionType", "isPreferred"] },
+          description: "Which fields to replace. Send a matching value for each.",
+        },
+        uri: { type: "string", description: "New destination URL" },
+        place_action_type: {
+          type: "string",
+          enum: ["APPOINTMENT", "ONLINE_APPOINTMENT", "DINING_RESERVATION", "FOOD_ORDERING", "FOOD_DELIVERY", "FOOD_TAKEOUT", "SHOP_ONLINE"],
+          description: "New action type",
+        },
+        is_preferred: { type: "boolean", description: "Whether this is the preferred link for its type" },
+      },
+      required: ["profile_id", "location_id", "name", "fields"],
+    },
+  },
+  {
+    name: "google_business_place_action_link_delete",
+    description: "Remove an action link from a Google Business Profile location. The button stops showing on Search and Maps.",
+    annotations: {
+      title: "Delete Google Business Place Action Link",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        name: { type: "string", description: "Link resource name 'locations/Y/placeActionLinks/Z'" },
+      },
+      required: ["profile_id", "location_id", "name"],
+    },
+  },
+  {
+    name: "google_business_media_list",
+    description: "List the photos and videos on a Google Business Profile location. These are profile photos, distinct from media attached to a local post.",
+    annotations: {
+      title: "List Google Business Media",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        page_size: { type: "number", description: "1-250 (default 100)" },
+        page_token: { type: "string", description: "From a previous response's nextPageToken" },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "google_business_media_create",
+    description: "Add a photo or video to a Google Business Profile location. Google downloads the file from media_url itself — there is no upload step, so the URL must be publicly reachable https (not a short-lived signed URL, not localhost). Images need at least 250x250 and at most 5MB. Use category COVER or LOGO only when you intend to change the profile header or logo.",
+    annotations: {
+      title: "Add Google Business Media",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        media_url: { type: "string", description: "Public https URL Google can fetch the file from" },
+        category: {
+          type: "string",
+          enum: ["CATEGORY_UNSPECIFIED", "COVER", "PROFILE", "LOGO", "EXTERIOR", "INTERIOR", "PRODUCT", "AT_WORK", "FOOD_AND_DRINK", "MENU", "COMMON_AREA", "ROOMS", "TEAMS", "ADDITIONAL"],
+          description: "Where the media appears. Defaults to ADDITIONAL.",
+        },
+        media_format: { type: "string", enum: ["PHOTO", "VIDEO"], description: "Defaults to PHOTO" },
+        description: { type: "string", description: "Max 2000 characters" },
+      },
+      required: ["profile_id", "location_id", "media_url"],
+    },
+  },
+  {
+    name: "google_business_media_delete",
+    description: "Permanently remove a photo or video from a Google Business Profile location. media_name is the full resource name from google_business_media_list and must belong to this location.",
+    annotations: {
+      title: "Delete Google Business Media",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        media_name: {
+          type: "string",
+          description: "Media resource name 'accounts/X/locations/Y/media/Z'",
+        },
+      },
+      required: ["profile_id", "location_id", "media_name"],
+    },
+  },
 ] as const;
 
 export async function createMCPServer(client: PostProxyClient): Promise<Server> {
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.16.0",
+      version: "1.17.0",
     },
     {
       capabilities: {
@@ -1737,6 +2214,42 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleDmChatUnarchive(client, args as any);
         case "dm_comment_private_reply":
           return await handleDmCommentPrivateReply(client, args as any);
+        case "google_business_location_get":
+          return await handleGoogleBusinessLocationGet(client, args as any);
+        case "google_business_location_update":
+          return await handleGoogleBusinessLocationUpdate(client, args as any);
+        case "google_business_categories_list":
+          return await handleGoogleBusinessCategoriesList(client, args as any);
+        case "google_business_hours_update":
+          return await handleGoogleBusinessHoursUpdate(client, args as any);
+        case "google_business_attributes_get":
+          return await handleGoogleBusinessAttributesGet(client, args as any);
+        case "google_business_attributes_available":
+          return await handleGoogleBusinessAttributesAvailable(client, args as any);
+        case "google_business_attributes_update":
+          return await handleGoogleBusinessAttributesUpdate(client, args as any);
+        case "google_business_service_list_get":
+          return await handleGoogleBusinessServiceListGet(client, args as any);
+        case "google_business_service_list_update":
+          return await handleGoogleBusinessServiceListUpdate(client, args as any);
+        case "google_business_food_menus_get":
+          return await handleGoogleBusinessFoodMenusGet(client, args as any);
+        case "google_business_food_menus_update":
+          return await handleGoogleBusinessFoodMenusUpdate(client, args as any);
+        case "google_business_place_action_links_list":
+          return await handleGoogleBusinessPlaceActionLinksList(client, args as any);
+        case "google_business_place_action_link_create":
+          return await handleGoogleBusinessPlaceActionLinkCreate(client, args as any);
+        case "google_business_place_action_link_update":
+          return await handleGoogleBusinessPlaceActionLinkUpdate(client, args as any);
+        case "google_business_place_action_link_delete":
+          return await handleGoogleBusinessPlaceActionLinkDelete(client, args as any);
+        case "google_business_media_list":
+          return await handleGoogleBusinessMediaList(client, args as any);
+        case "google_business_media_create":
+          return await handleGoogleBusinessMediaCreate(client, args as any);
+        case "google_business_media_delete":
+          return await handleGoogleBusinessMediaDelete(client, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
       }

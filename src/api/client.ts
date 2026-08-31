@@ -45,7 +45,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.16.0";
+const PACKAGE_VERSION = "1.17.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1350,6 +1350,188 @@ export class PostProxyClient {
       "POST",
       `/posts/${postId}/comments/${encodeURIComponent(commentId)}/private_reply?profile_id=${profileId}`,
       params
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Google Business Profile management
+  //
+  // These proxy Google's own resource shapes through unchanged, so the responses
+  // stay `any` on purpose: a caller has to be able to PATCH back exactly what it
+  // GET'd, and the nested shapes vary by location eligibility.
+  // ---------------------------------------------------------------------------
+
+  private googleBusinessPath(
+    profileId: string,
+    action: string,
+    query: Record<string, string | undefined> = {}
+  ): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, String(value));
+      }
+    }
+    const qs = params.toString();
+    return `/profiles/${encodeURIComponent(profileId)}/google_business/${action}${qs ? `?${qs}` : ""}`;
+  }
+
+  async getGoogleBusinessLocation(
+    profileId: string,
+    locationId: string,
+    readMask?: string
+  ): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "location", {
+        location_id: locationId,
+        read_mask: readMask,
+      })
+    );
+  }
+
+  async updateGoogleBusinessLocation(profileId: string, body: any): Promise<any> {
+    return this.request<any>("PATCH", this.googleBusinessPath(profileId, "update_location"), body);
+  }
+
+  async listGoogleBusinessCategories(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "available_location_categories", query)
+    );
+  }
+
+  async updateGoogleBusinessHours(profileId: string, body: any): Promise<any> {
+    return this.request<any>("PATCH", this.googleBusinessPath(profileId, "update_hours"), body);
+  }
+
+  async getGoogleBusinessAttributes(profileId: string, locationId: string): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "attributes", { location_id: locationId })
+    );
+  }
+
+  async listGoogleBusinessAvailableAttributes(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "available_attributes", query)
+    );
+  }
+
+  async updateGoogleBusinessAttributes(profileId: string, body: any): Promise<any> {
+    return this.request<any>(
+      "PATCH",
+      this.googleBusinessPath(profileId, "update_attributes"),
+      body
+    );
+  }
+
+  async getGoogleBusinessServiceList(profileId: string, locationId: string): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "service_list", { location_id: locationId })
+    );
+  }
+
+  async updateGoogleBusinessServiceList(profileId: string, body: any): Promise<any> {
+    return this.request<any>(
+      "PATCH",
+      this.googleBusinessPath(profileId, "update_service_list"),
+      body
+    );
+  }
+
+  async getGoogleBusinessFoodMenus(
+    profileId: string,
+    locationId: string,
+    fields?: string
+  ): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "food_menus", { location_id: locationId, fields })
+    );
+  }
+
+  async updateGoogleBusinessFoodMenus(profileId: string, body: any): Promise<any> {
+    return this.request<any>(
+      "PATCH",
+      this.googleBusinessPath(profileId, "update_food_menus"),
+      body
+    );
+  }
+
+  async listGoogleBusinessPlaceActionLinks(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "place_action_links", query)
+    );
+  }
+
+  async createGoogleBusinessPlaceActionLink(profileId: string, body: any): Promise<any> {
+    return this.request<any>(
+      "POST",
+      this.googleBusinessPath(profileId, "create_place_action_link"),
+      body
+    );
+  }
+
+  async updateGoogleBusinessPlaceActionLink(profileId: string, body: any): Promise<any> {
+    return this.request<any>(
+      "PATCH",
+      this.googleBusinessPath(profileId, "update_place_action_link"),
+      body
+    );
+  }
+
+  // The DELETE endpoints take their arguments in the query string rather than a
+  // body: `request` only serializes bodies for POST/PUT/PATCH, and DELETE bodies
+  // are routinely dropped in transit. Rails reads query and body the same way.
+  async deleteGoogleBusinessPlaceActionLink(
+    profileId: string,
+    locationId: string,
+    name: string
+  ): Promise<any> {
+    return this.request<any>(
+      "DELETE",
+      this.googleBusinessPath(profileId, "delete_place_action_link", {
+        location_id: locationId,
+        name,
+      })
+    );
+  }
+
+  async listGoogleBusinessMedia(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    return this.request<any>("GET", this.googleBusinessPath(profileId, "media", query));
+  }
+
+  async createGoogleBusinessMedia(profileId: string, body: any): Promise<any> {
+    return this.request<any>("POST", this.googleBusinessPath(profileId, "create_media"), body);
+  }
+
+  async deleteGoogleBusinessMedia(
+    profileId: string,
+    locationId: string,
+    mediaName: string
+  ): Promise<any> {
+    return this.request<any>(
+      "DELETE",
+      this.googleBusinessPath(profileId, "delete_media", {
+        location_id: locationId,
+        media_name: mediaName,
+      })
     );
   }
 }
