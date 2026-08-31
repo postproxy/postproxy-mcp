@@ -35,6 +35,7 @@ import type {
   CreateChatParams,
   ListMessagesParams,
   SendMessageParams,
+  PrivateReplyParams,
   EditMessageParams,
   ReactMessageParams,
   UploadResponse,
@@ -44,7 +45,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.15.0";
+const PACKAGE_VERSION = "1.16.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1343,12 +1344,12 @@ export class PostProxyClient {
     postId: string,
     commentId: string,
     profileId: string,
-    text: string
+    params: PrivateReplyParams
   ): Promise<DirectMessage> {
     return this.request<DirectMessage>(
       "POST",
       `/posts/${postId}/comments/${encodeURIComponent(commentId)}/private_reply?profile_id=${profileId}`,
-      { text }
+      params
     );
   }
 }

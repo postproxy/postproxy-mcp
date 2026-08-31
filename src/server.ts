@@ -1531,7 +1531,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "dm_comment_private_reply",
-    description: "Send a DM to the author of a comment, in reply to that comment (Meta 'Private Replies'). Bypasses the 24h window (comments up to 7 days old) and creates/reuses a chat automatically. One private reply per comment, ever. Instagram and Facebook (Page comments) only.",
+    description: "Send a DM to the author of a comment, in reply to that comment (Meta 'Private Replies'). Bypasses the 24h window (comments up to 7 days old) and creates/reuses a chat automatically. One private reply per comment, ever. Instagram and Facebook (Page comments) only. Supports the same quick_replies / buttons / card interactive elements as dm_message_send; media attachments are not available on private replies.",
     annotations: {
       title: "Private Reply to Comment",
       readOnlyHint: false,
@@ -1558,6 +1558,59 @@ export const TOOL_DEFINITIONS = [
           type: "string",
           description: "DM text",
         },
+        quick_replies: {
+          type: "array",
+          description: "Up to 13 tappable chips shown above the participant's composer; they disappear once one is tapped. A tap arrives as an inbound message carrying tapped_action.payload. On Instagram, quick replies cannot be combined with buttons (Facebook accepts both).",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Chip label, max 20 characters" },
+              payload: {
+                type: "string",
+                description: "Opaque payload echoed back in tapped_action when tapped, max 1000 characters",
+              },
+            },
+            required: ["title", "payload"],
+          },
+        },
+        buttons: {
+          type: "array",
+          description: "Up to 3 buttons attached to the reply, which stay in the thread. Sent as a Meta generic template whose element title is your text — so text is capped at 80 characters when buttons are present. A postback tap arrives as an inbound message carrying tapped_action.payload.",
+          items: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["web_url", "postback"],
+                description: "web_url opens url; postback sends payload back as an inbound message",
+              },
+              title: { type: "string", description: "Button label, max 20 characters" },
+              url: { type: "string", description: "Required for web_url buttons. Must be an https:// URL." },
+              payload: {
+                type: "string",
+                description: "Required for postback buttons, max 1000 characters",
+              },
+            },
+            required: ["type", "title"],
+          },
+        },
+        card: {
+          type: "object",
+          description: "Extra generic-template fields for the card that carries buttons — requires buttons. Renders a richer product-style card.",
+          properties: {
+            subtitle: { type: "string", description: "Secondary line under the text, max 80 characters" },
+            image_url: { type: "string", description: "Card image. Must be an https:// URL." },
+            default_action: {
+              type: "object",
+              description: "Opened when the card itself is tapped.",
+              properties: {
+                type: { type: "string", enum: ["web_url"] },
+                url: { type: "string", description: "Must be an https:// URL" },
+              },
+              required: ["type", "url"],
+            },
+          },
+        },
       },
       required: ["post_id", "comment_id", "profile_id", "text"],
     },
@@ -1568,7 +1621,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.15.0",
+      version: "1.16.0",
     },
     {
       capabilities: {

@@ -795,6 +795,11 @@ Send a DM to the author of a comment, in reply to that comment (Meta "Private Re
 - `comment_id` (string, required): Comment ID or external ID
 - `profile_id` (string, required): Profile ID (Instagram or Facebook)
 - `text` (string, required): DM text
+- `quick_replies` (array, optional): Up to 13 chips — same shape as `dm_message_send`
+- `buttons` (array, optional): Up to 3 buttons — same shape as `dm_message_send`; caps `text` at 80 characters
+- `card` (object, optional): Card styling for `buttons` (`subtitle`, `image_url`, `default_action`)
+
+Interactive elements follow the same rules as `dm_message_send` — on Instagram, `quick_replies` and `buttons` are mutually exclusive. Media attachments are not available on private replies.
 
 #### Platform Support
 

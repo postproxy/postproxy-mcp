@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.15.0";
+const PACKAGE_VERSION = "1.16.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -1045,11 +1045,21 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     if (!comment_id) throw new Error("comment_id is required");
     if (!profile_id) throw new Error("profile_id is required");
     if (!text) throw new Error("text is required");
+    // A private reply carries its text in `text`; the shared validator reads `body`.
+    const interactiveError = validateDmInteractive({ ...args, body: text });
+    if (interactiveError) throw new Error(interactiveError);
+
+    const body: any = { text };
+    if (Array.isArray(args.quick_replies) && args.quick_replies.length > 0) {
+      body.quick_replies = args.quick_replies;
+    }
+    if (Array.isArray(args.buttons) && args.buttons.length > 0) body.buttons = args.buttons;
+    if (args.card) body.card = args.card;
 
     const response = await this.apiRequest<any>(
       "POST",
       `/posts/${post_id}/comments/${encodeURIComponent(comment_id)}/private_reply?profile_id=${profile_id}`,
-      { text }
+      body
     );
     return JSON.stringify(response, null, 2);
   }

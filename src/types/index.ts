@@ -638,6 +638,13 @@ export interface SendMessageParams {
   card?: DMCard; // requires buttons
 }
 
+export interface PrivateReplyParams {
+  text: string;
+  quick_replies?: DMQuickReply[]; // max 13
+  buttons?: DMButton[]; // max 3
+  card?: DMCard; // requires buttons
+}
+
 export interface EditMessageParams {
   body?: string;
   reply_markup?: Record<string, any>;

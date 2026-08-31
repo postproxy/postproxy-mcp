@@ -334,6 +334,9 @@ export async function handleDmCommentPrivateReply(
     comment_id: string;
     profile_id: string;
     text: string;
+    quick_replies?: DMQuickReply[];
+    buttons?: DMButton[];
+    card?: DMCard;
   }
 ) {
   if (!args.post_id) {
@@ -348,13 +351,23 @@ export async function handleDmCommentPrivateReply(
   if (!args.text) {
     throw createError(ErrorCodes.VALIDATION_ERROR, "text is required");
   }
+  // A private reply carries its text in `text`; the shared validator reads `body`.
+  const interactiveError = validateDmInteractive({ ...args, body: args.text });
+  if (interactiveError) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, interactiveError);
+  }
 
   try {
     const response = await client.privateReplyToComment(
       args.post_id,
       args.comment_id,
       args.profile_id,
-      args.text
+      {
+        text: args.text,
+        quick_replies: args.quick_replies,
+        buttons: args.buttons,
+        card: args.card,
+      }
     );
     return ok(response);
   } catch (error) {
