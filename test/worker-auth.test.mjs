@@ -82,3 +82,27 @@ test('GET /mcp without auth still 401s', async () => {
   const res = await worker.fetch('https://mcp.postproxy.dev/mcp', { method: 'GET' });
   assert.equal(res.status, 401);
 });
+
+// OpenAI plugin-submission domain verification: the portal's token must be
+// served verbatim from /.well-known/openai-apps-challenge on the MCP host.
+test('challenge route 404s when no token is configured', async () => {
+  const res = await worker.fetch('https://mcp.postproxy.dev/.well-known/openai-apps-challenge');
+  assert.equal(res.status, 404);
+});
+
+test('challenge route serves the configured token as text/plain', async () => {
+  const challengeWorker = await unstable_dev('worker/index.ts', {
+    experimental: { disableExperimentalWarning: true },
+    vars: { OPENAI_APPS_CHALLENGE: 'openai-verify-abc123' },
+  });
+  try {
+    const res = await challengeWorker.fetch(
+      'https://mcp.postproxy.dev/.well-known/openai-apps-challenge'
+    );
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type') ?? '', /^text\/plain/);
+    assert.equal(await res.text(), 'openai-verify-abc123');
+  } finally {
+    await challengeWorker.stop();
+  }
+});

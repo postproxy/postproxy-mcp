@@ -58,3 +58,28 @@ test('google business tools all take profile_id and location_id', () => {
     assert.ok(tool.inputSchema.required.includes('location_id'), `${tool.name} must require location_id`);
   }
 });
+
+// Annotation invariants matching the OpenAI plugin review rules:
+// a read-only tool cannot be destructive, and tools scoped to the user's own
+// account (every read here) are not "open world".
+test('read-only tools are neither destructive nor open-world', () => {
+  for (const tool of TOOL_DEFINITIONS.filter((t) => t.annotations.readOnlyHint === true)) {
+    assert.equal(tool.annotations.destructiveHint, false, `${tool.name} read-only but destructive`);
+    assert.equal(tool.annotations.openWorldHint, false, `${tool.name} read-only but open-world`);
+  }
+});
+
+test('tools that publish or send to third-party platforms are marked destructive', () => {
+  const irreversible = [
+    'post_publish', 'post_delete', 'post_delete_on_platform',
+    'comments_create', 'comments_delete', 'profile_comments_create', 'profile_comments_delete',
+    'dm_message_send', 'dm_message_edit', 'dm_comment_private_reply',
+    'google_business_media_create', 'google_business_media_delete',
+  ];
+  for (const name of irreversible) {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === name);
+    assert.ok(tool, `${name} missing`);
+    assert.equal(tool.annotations.destructiveHint, true, `${name} should be destructiveHint: true`);
+    assert.equal(tool.annotations.openWorldHint, true, `${name} should be openWorldHint: true`);
+  }
+});

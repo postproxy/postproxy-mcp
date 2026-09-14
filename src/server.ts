@@ -225,7 +225,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Publish Post",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -898,7 +898,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Create Comment",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -1132,7 +1132,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Reply to Profile Comment",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -1315,7 +1315,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Send Message",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -1555,7 +1555,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Private Reply to Comment",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -1642,7 +1642,7 @@ export const TOOL_DEFINITIONS = [
       title: "Get Google Business Location",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -1705,7 +1705,7 @@ export const TOOL_DEFINITIONS = [
       title: "List Google Business Categories",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -1765,7 +1765,7 @@ export const TOOL_DEFINITIONS = [
       title: "Get Google Business Attributes",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -1783,7 +1783,7 @@ export const TOOL_DEFINITIONS = [
       title: "List Available Google Business Attributes",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -1839,7 +1839,7 @@ export const TOOL_DEFINITIONS = [
       title: "Get Google Business Service List",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -1881,7 +1881,7 @@ export const TOOL_DEFINITIONS = [
       title: "Get Google Business Food Menus",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -1928,7 +1928,7 @@ export const TOOL_DEFINITIONS = [
       title: "List Google Business Place Action Links",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -2029,7 +2029,7 @@ export const TOOL_DEFINITIONS = [
       title: "List Google Business Media",
       readOnlyHint: true,
       destructiveHint: false,
-      openWorldHint: true,
+      openWorldHint: false,
     },
     inputSchema: {
       type: "object",
@@ -2048,7 +2048,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Add Google Business Media",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },

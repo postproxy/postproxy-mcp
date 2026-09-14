@@ -17,6 +17,8 @@ const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 interface Env {
   POSTPROXY_BASE_URL: string;
   POSTPROXY_APP_URL: string;
+  /** Domain-verification token issued by the OpenAI plugin submission portal. */
+  OPENAI_APPS_CHALLENGE?: string;
 }
 
 interface ProfileGroup {
@@ -1460,6 +1462,21 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     // Handle CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: this.corsHeaders });
+    }
+
+    // ─── OpenAI plugin domain verification ─────────────────────────
+    // The submission portal issues a token that must be served verbatim
+    // from this path on the MCP host. Set OPENAI_APPS_CHALLENGE via
+    // `wrangler secret put` (or [vars]) before running the check.
+    if (url.pathname === "/.well-known/openai-apps-challenge") {
+      const token = this.env.OPENAI_APPS_CHALLENGE;
+      if (!token) {
+        return new Response("Not Found", { status: 404, headers: this.corsHeaders });
+      }
+      return new Response(token, {
+        status: 200,
+        headers: { ...this.corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
+      });
     }
 
     // ─── OAuth: protected-resource metadata (RFC 9728) ─────────────
