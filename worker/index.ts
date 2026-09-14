@@ -1486,7 +1486,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         {
           resource: url.origin,
           authorization_servers: [this.appUrl],
-          scopes_supported: ["read", "write"],
+          scopes_supported: ["read", "write", "openid", "email"],
           bearer_methods_supported: ["header"],
           resource_name: "Postproxy MCP",
           resource_documentation: "https://postproxy.dev/getting-started/authentication/",
