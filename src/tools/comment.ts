@@ -344,3 +344,50 @@ export async function handleCommentsUnlike(
     );
   }
 }
+
+export async function handleCommentsEdit(
+  client: PostProxyClient,
+  args: {
+    post_id: string;
+    comment_id: string;
+    profile_id: string;
+    body: string;
+  }
+) {
+  if (!args.post_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "post_id is required");
+  }
+  if (!args.comment_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "comment_id is required");
+  }
+  if (!args.profile_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "profile_id is required");
+  }
+  if (!args.body || !args.body.trim()) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "body is required");
+  }
+
+  try {
+    const response = await client.editComment(
+      args.post_id,
+      args.comment_id,
+      args.profile_id,
+      args.body
+    );
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response, null, 2),
+        },
+      ],
+    };
+  } catch (error) {
+    logError(error as Error, "comments.edit");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to edit comment: ${(error as Error).message}`
+    );
+  }
+}

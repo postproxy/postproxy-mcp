@@ -2,11 +2,17 @@
  * Direct message tools: dm_chats_list, dm_chat_create, dm_chat_get,
  * dm_messages_list, dm_message_send, dm_message_get, dm_message_edit,
  * dm_message_react, dm_message_unreact, dm_chat_archive, dm_chat_unarchive,
- * dm_comment_private_reply
+ * dm_chat_mark_read, dm_comment_private_reply
  */
 
 import type { PostProxyClient } from "../api/client.js";
-import type { DMButton, DMCard, DMQuickReply } from "../types/index.js";
+import type {
+  DMButton,
+  DMCard,
+  DMQuickReply,
+  WhatsappLocation,
+  WhatsappTemplateSend,
+} from "../types/index.js";
 import { createError, ErrorCodes } from "../utils/errors.js";
 import { logError } from "../utils/logger.js";
 import { validateDmInteractive } from "../utils/validation.js";
@@ -58,6 +64,7 @@ export async function handleDmChatCreate(
   args: {
     profile_id: string;
     participant_external_id: string;
+    placement_id?: string;
     participant_username?: string;
     participant_name?: string;
   }
@@ -72,6 +79,7 @@ export async function handleDmChatCreate(
   try {
     const response = await client.createChat(args.profile_id, {
       participant_external_id: args.participant_external_id,
+      placement_id: args.placement_id,
       participant_username: args.participant_username,
       participant_name: args.participant_name,
     });
@@ -148,6 +156,14 @@ export async function handleDmMessageSend(
     quick_replies?: DMQuickReply[];
     buttons?: DMButton[];
     card?: DMCard;
+    template?: WhatsappTemplateSend;
+    interactive?: Record<string, any>;
+    location?: WhatsappLocation;
+    contacts?: Record<string, any>[];
+    category?: "utility";
+    link_preview?: boolean;
+    voice_note?: boolean;
+    filename?: string;
   }
 ) {
   if (!args.chat_id) {
@@ -155,8 +171,16 @@ export async function handleDmMessageSend(
   }
   const hasBody = typeof args.body === "string" && args.body.length > 0;
   const hasMedia = Array.isArray(args.media) && args.media.length > 0;
-  if (!hasBody && !hasMedia) {
-    throw createError(ErrorCodes.VALIDATION_ERROR, "body or media is required");
+  const hasWhatsappPayload =
+    !!args.template ||
+    !!args.interactive ||
+    !!args.location ||
+    (Array.isArray(args.contacts) && args.contacts.length > 0);
+  if (!hasBody && !hasMedia && !hasWhatsappPayload) {
+    throw createError(
+      ErrorCodes.VALIDATION_ERROR,
+      "body, media, template, interactive, location or contacts is required"
+    );
   }
   if (Array.isArray(args.media) && args.media.length > 1) {
     throw createError(
@@ -179,6 +203,14 @@ export async function handleDmMessageSend(
       quick_replies: args.quick_replies,
       buttons: args.buttons,
       card: args.card,
+      template: args.template,
+      interactive: args.interactive,
+      location: args.location,
+      contacts: args.contacts,
+      category: args.category,
+      link_preview: args.link_preview,
+      voice_note: args.voice_note,
+      filename: args.filename,
     });
     return ok(response);
   } catch (error) {
@@ -323,6 +355,26 @@ export async function handleDmChatUnarchive(
     throw createError(
       ErrorCodes.API_ERROR,
       `Failed to unarchive chat: ${(error as Error).message}`
+    );
+  }
+}
+
+export async function handleDmChatMarkRead(
+  client: PostProxyClient,
+  args: { chat_id: string }
+) {
+  if (!args.chat_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "chat_id is required");
+  }
+
+  try {
+    const response = await client.markReadChat(args.chat_id);
+    return ok(response);
+  } catch (error) {
+    logError(error as Error, "dm.chat_mark_read");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to mark chat as read: ${(error as Error).message}`
     );
   }
 }

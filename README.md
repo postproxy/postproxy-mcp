@@ -166,7 +166,7 @@ List all available social media profiles for posting.
 
 #### `profiles_placements`
 
-List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. For Telegram profiles, placements are channels the bot can post to. For Google Business profiles, placements are locations, returned as full resource paths (`accounts/X/locations/Y`) to pass as `location_id`. Available for `facebook`, `linkedin`, `pinterest`, `telegram`, and `google_business` profiles.
+List available placements for a profile. For Facebook profiles, placements are business pages. For LinkedIn profiles, placements include the personal profile and organizations. For Pinterest profiles, placements are boards. For Telegram profiles, placements are channels the bot can post to. For Google Business profiles, placements are locations, returned as full resource paths (`accounts/X/locations/Y`) to pass as `location_id`. For WhatsApp profiles, placements are the phone numbers on the Business Account — the placement `id` is the `phone_number_id` every `whatsapp_*` tool and `dm_chat_create` take. Available for `facebook`, `linkedin`, `pinterest`, `telegram`, `google_business`, and `whatsapp` profiles.
 
 **Parameters**:
 - `profile_id` (string, required): Profile hashid
@@ -609,6 +609,16 @@ Delete a comment from the platform asynchronously. Supported on Instagram, Faceb
 - `comment_id` (string, required): Comment ID (Postproxy ID or external ID)
 - `profile_id` (string, required): Profile ID
 
+#### `comments_edit`
+
+Edit the text of a comment you published, asynchronously. Supported on Facebook and YouTube only. Returns `{ accepted: true }`; the outcome arrives via `comment.edited` / `comment.edit_failed` webhooks.
+
+**Parameters**:
+- `post_id` (string, required): Post ID
+- `comment_id` (string, required): Comment ID (Postproxy ID or external ID)
+- `profile_id` (string, required): Profile ID
+- `body` (string, required): New comment text
+
 #### `comments_hide`
 
 Hide a comment on the platform asynchronously. Supported on Instagram, Facebook, and Threads.
@@ -657,17 +667,19 @@ Remove a like from a comment. Currently only supported on Facebook.
 
 ### Direct Messages
 
-1:1 messaging (chats and messages) on DM-capable profiles. Supported on Facebook (Messenger), Instagram (DMs), Telegram (Bot DMs), and Bluesky. Outbound sends are processed asynchronously (returned with `status: "pending"`). Meta's 24h messaging window applies to Facebook/Instagram — a human replying to the participant's own inquiry can pass `tag: "HUMAN_AGENT"` to send outside it (up to 7 days, never for promotional or automated content); Telegram and Bluesky have no window.
+1:1 messaging (chats and messages) on DM-capable profiles. Supported on Facebook (Messenger), Instagram (DMs), Telegram (Bot DMs), Bluesky, and WhatsApp. Outbound sends are processed asynchronously (returned with `status: "pending"`). Meta's 24h messaging window applies to Facebook/Instagram — a human replying to the participant's own inquiry can pass `tag: "HUMAN_AGENT"` to send outside it (up to 7 days, never for promotional or automated content); Telegram and Bluesky have no window. On WhatsApp the window is re-opened only by sending an **approved template** (`template`) or a `category: "utility"` text — see [WhatsApp Business Management](#whatsapp-business-management) for the rest of the WhatsApp surface.
 
 #### `dm_chats_list`
 
 List chats for a profile, ordered by most recent activity.
 
 **Parameters**:
-- `profile_id` (string, required): Profile ID (Facebook, Instagram, Telegram, or Bluesky)
+- `profile_id` (string, required): Profile ID (Facebook, Instagram, Telegram, Bluesky, or WhatsApp)
 - `page` (number, optional): Page number, zero-indexed (default: 0)
 - `per_page` (number, optional): Items per page (default: 20)
 - `before` / `after` (string, optional): ISO 8601 timestamp filters on `last_message_at`
+
+WhatsApp chats also carry `external_placement_id` (the phone number the chat belongs to), `group` (`true` for group chats) and `within_messaging_window`.
 
 #### `dm_chat_create`
 
@@ -675,9 +687,12 @@ Find or create a chat for a participant (idempotent — returns the existing cha
 
 **Parameters**:
 - `profile_id` (string, required): Profile ID
-- `participant_external_id` (string, required): Platform participant ID (IG-scoped user ID, Facebook PSID, Telegram user id, or Bluesky DID)
+- `participant_external_id` (string, required): Platform participant ID (IG-scoped user ID, Facebook PSID, Telegram user id, Bluesky DID, or a WhatsApp phone number with country code — non-digits are stripped)
+- `placement_id` (string, optional): Placement id from `profiles_placements`. **Required on WhatsApp** (the phone number the chat is on); optional on Facebook (page id)
 - `participant_username` (string, optional)
 - `participant_name` (string, optional)
+
+A brand-new WhatsApp conversation has no open messaging window, so the first send into it must be a `template` (see `dm_message_send`).
 
 #### `dm_chat_get`
 
@@ -699,18 +714,26 @@ List messages in a chat, most recent first.
 
 #### `dm_message_send`
 
-Send an outbound message. Provide **either** `body` (text) **or** `media` (a single attachment), not both.
+Send an outbound message. Provide **exactly one** of `body` (text), `media` (a single attachment), or — on WhatsApp — `template`, `interactive`, `location` or `contacts`.
 
 **Parameters**:
 - `chat_id` (string, required): Chat ID or external conversation ID
-- `body` (string, optional): Message text (required when `media` is empty)
-- `media` (string[], optional): Up to one attachment as a URL or local file path. Not supported on Bluesky. (The remote/Worker MCP accepts URLs only.)
+- `body` (string, optional): Message text (required when nothing else is sent; on WhatsApp it may also accompany `media` as the caption)
+- `media` (string[], optional): Up to one attachment as a URL or local file path. Not supported on Bluesky. (The remote/Worker MCP accepts URLs only.) WhatsApp limits: image 5MB jpeg/png, video 16MB mp4/3gpp, audio 16MB, document 100MB.
 - `tag` (string, optional): `HUMAN_AGENT` to send outside the 24h window — extends it to 7 days from the participant's last inbound message (Facebook/Instagram only). Meta restricts it to a **human** replying to the participant's own inquiry; using it for marketing, offers, or automated re-engagement can get that Page / Instagram account's messaging capability suspended. Past 7 days Meta rejects the send and the message lands in `status: failed` with the platform error in `error_details`.
-- `reply_to_external_id` (string, optional): **Telegram only** — message_id to thread under
+- `reply_to_external_id` (string, optional): **Telegram & WhatsApp** — platform message id (Telegram `message_id`, WhatsApp `wamid`) to quote / thread under
 - `reply_markup` (object, optional): **Telegram only** — inline/reply keyboard payload
 - `quick_replies` (object[], optional): **Facebook & Instagram only** — up to 13 tappable chips above the participant's composer. Each `{ title, payload }`.
 - `buttons` (object[], optional): **Facebook & Instagram only** — up to 3 buttons attached to the message. Each `{ type: "web_url", title, url }` or `{ type: "postback", title, payload }`.
 - `card` (object, optional): **Facebook & Instagram only** — extra fields for the card carrying `buttons` (`subtitle`, `image_url`, `default_action`). Requires `buttons`.
+- `template` (object, optional): **WhatsApp only** — send an approved template: `{ id | name, language, variables[], button_params[], header_media, header_location }`. The only way to message outside the 24h window or to open a new conversation.
+- `interactive` (object, optional): **WhatsApp only** — Meta-shaped interactive message (reply buttons, list, cta_url, product, flow, location request), passed through unchanged
+- `location` (object, optional): **WhatsApp only** — `{ latitude, longitude, name, address }`
+- `contacts` (object[], optional): **WhatsApp only** — contact cards in Meta's `contacts` shape
+- `category` (string, optional): **WhatsApp only** — `"utility"` marks a plain text send as a utility Direct Send that may go outside the window without a template
+- `link_preview` (boolean, optional): **WhatsApp only** — `false` suppresses the URL preview on a text message
+- `voice_note` (boolean, optional): **WhatsApp only** — deliver an OGG/Opus audio attachment as a voice note
+- `filename` (string, optional): **WhatsApp only** — display name for a document attachment
 
 ##### Quick replies and buttons
 
@@ -752,6 +775,43 @@ Buttons are delivered as a Meta generic template whose element title is your `bo
 
 **Receiving taps**: a tapped chip or button postback arrives as an **inbound message** carrying `tapped_action`: `{ "kind": "quick_reply" | "postback" | "callback_query", "payload": "...", "title": "..." }`. Read it from `dm_messages_list` / `dm_message_get` instead of digging through `platform_data`. Instagram ice-breaker taps and Telegram callback queries normalize to the same field.
 
+##### WhatsApp templates and interactive messages
+
+A WhatsApp number can only send free-form text, media, `interactive`, `location` and `contacts` while the participant's 24h window is open (`within_messaging_window` on the chat). Outside it — including a conversation you start yourself — send an **approved template**. `variables` fill the placeholders in order (header text vars first, then body vars, then dynamic URL button vars) and must match the template's `variable_count` from `whatsapp_templates_list`; the rendered body is stored on the message.
+
+```json
+{
+  "chat_id": "chat_wa1",
+  "template": {
+    "name": "order_update",
+    "language": "en_US",
+    "variables": ["Ana", "ORD-12345"]
+  }
+}
+```
+
+Templates with a media header take `header_media: { "link": "https://..." }`; a location header takes `header_location`; URL / copy-code / flow buttons take `button_params: [{ "index": 0, "sub_type": "url", "parameters": [{ "type": "text", "text": "12345" }] }]`.
+
+Inside the window, `interactive` is Meta's own object — reply buttons (up to 3), a list (up to 10 rows), a CTA URL, a product card, a flow or a location request:
+
+```json
+{
+  "chat_id": "chat_wa1",
+  "interactive": {
+    "type": "button",
+    "body": { "text": "Ready to confirm your booking?" },
+    "action": {
+      "buttons": [
+        { "type": "reply", "reply": { "id": "confirm", "title": "Confirm" } },
+        { "type": "reply", "reply": { "id": "reschedule", "title": "Reschedule" } }
+      ]
+    }
+  }
+}
+```
+
+A tap comes back as an inbound message whose `body` is the tapped title, with the reply `id` under `platform_data.interactive`. Facebook/Instagram `quick_replies` / `buttons` return `422` on WhatsApp, and `template` / `interactive` / `location` / `contacts` / `category` return `422` on every other network.
+
 #### `dm_message_get`
 
 Get a single message by Postproxy ID or platform `external_id`.
@@ -770,12 +830,12 @@ Edit a previously-sent outbound message. **Telegram only.** Provide `body` and/o
 
 #### `dm_message_react` / `dm_message_unreact`
 
-Add or remove your business account's reaction on a message. **Facebook Messenger and Instagram Direct only.**
+Add or remove your business account's reaction on a message. **Facebook Messenger, Instagram Direct and WhatsApp.**
 
 **Parameters** (`dm_message_react`):
 - `message_id` (string, required): Message ID or external ID
-- `reaction` (string, optional): Named reaction (default `love`)
-- `emoji` (string, optional): Unicode emoji
+- `reaction` (string, optional): Named reaction (default `love`). Ignored on WhatsApp
+- `emoji` (string, optional): Unicode emoji. Required on WhatsApp (any emoji)
 
 **Parameters** (`dm_message_unreact`):
 - `message_id` (string, required)
@@ -783,6 +843,13 @@ Add or remove your business account's reaction on a message. **Facebook Messenge
 #### `dm_chat_archive` / `dm_chat_unarchive`
 
 Archive (mute) or unarchive (unmute) a chat. **Bluesky only.** Returns the chat with `archived` set.
+
+**Parameters**:
+- `chat_id` (string, required): Chat ID or external conversation ID
+
+#### `dm_chat_mark_read`
+
+Mark a chat as read. On WhatsApp this sends the read receipt (blue ticks) for the newest inbound message; on other networks it only stamps `metadata.read_at`. Returns the chat.
 
 **Parameters**:
 - `chat_id` (string, required): Chat ID or external conversation ID
@@ -804,18 +871,21 @@ Interactive elements follow the same rules as `dm_message_send` — on Instagram
 
 #### Platform Support
 
-| Action | Facebook | Instagram | Telegram | Bluesky |
-|--------|----------|-----------|----------|---------|
-| List/Send/Get | Yes | Yes | Yes | Yes |
-| Media attachment | Yes | Yes | Yes | No |
-| Edit message | No | No | Yes | No |
-| React/Unreact | Yes | Yes | No | No |
-| Archive/Unarchive | No | No | No | Yes |
-| Private reply to comment | Yes | Yes | No | No |
-| `tag` (24h window) | Yes | Yes | n/a | n/a |
-| `reply_to_external_id` / `reply_markup` | No | No | Yes | No |
-| `quick_replies` / `buttons` / `card` | Yes | Yes (text-only) | No | No |
-| `tapped_action` on inbound taps | Yes | Yes | Yes | No |
+| Action | Facebook | Instagram | Telegram | Bluesky | WhatsApp |
+|--------|----------|-----------|----------|---------|----------|
+| List/Send/Get | Yes | Yes | Yes | Yes | Yes |
+| Media attachment | Yes | Yes | Yes | No | Yes (caption allowed) |
+| Edit message | No | No | Yes | No | No |
+| React/Unreact | Yes | Yes | No | No | Yes (`emoji`) |
+| Archive/Unarchive | No | No | No | Yes | No |
+| Mark read (receipt sent) | local only | local only | local only | local only | Yes |
+| Private reply to comment | Yes | Yes | No | No | No |
+| `tag` (24h window) | Yes | Yes | n/a | n/a | No — use `template` / `category: utility` |
+| `reply_to_external_id` | No | No | Yes | No | Yes |
+| `reply_markup` | No | No | Yes | No | No |
+| `quick_replies` / `buttons` / `card` | Yes | Yes (text-only) | No | No | No — use `interactive` |
+| `template` / `interactive` / `location` / `contacts` | No | No | No | No | Yes |
+| `tapped_action` on inbound taps | Yes | Yes | Yes | No | No (see `platform_data.interactive`) |
 
 ### History
 
@@ -938,6 +1008,69 @@ Google omits keys rather than returning empty values: a listing with no attribut
 #### Analytics
 
 Google Business location analytics come through the standard `profiles_stats` tool — pass the `location_id` as `placement_id`. Metrics are Search and Maps impressions (desktop and mobile), website clicks, call clicks, direction requests, conversations, bookings, food orders and food-menu clicks. Google Business has no follower count, and Google exposes no per-post analytics for local posts.
+
+### WhatsApp Business Management
+
+Manage a connected WhatsApp Business Account beyond the inbox: message templates, phone-number status and registration, the public business profile, display name and username, blocked users, groups, and Click-to-WhatsApp conversion reporting. Conversations themselves go through the `dm_*` tools above.
+
+Four rules apply to every tool in this group:
+
+1. **The WhatsApp Business Account (WABA) is the profile; each phone number on it is a placement.** Phone-scoped tools take `phone_number_id` — the placement `id` from `profiles_placements` (its metadata carries `display_phone_number`, `quality_rating`, `messaging_limit_tier`, `name_status`, `platform_type`).
+2. **Templates and the Conversions dataset are WABA-level** — those tools take only `profile_id`.
+3. **Free-form messages only inside the 24h window.** Once a participant's last inbound message is older than 24h (or the conversation is new), `dm_message_send` accepts only an APPROVED `template` (or a `category: "utility"` text). A delivered template re-opens the window.
+4. **Coexistence numbers are limited.** A number connected with `onboarding: "business_app"` (still in the WhatsApp Business app on a phone) has lower throughput and cannot use the Groups API; `whatsapp_number_info` reports `platform_type` other than `CLOUD_API` for these.
+
+Responses use Meta's own field names where Meta's shapes are returned (`components`, `interactive`, business profile fields).
+
+| Tool | Purpose |
+|------|---------|
+| `whatsapp_templates_list` | List synced templates (filter `name`, `language`, `status`; `refresh: true` re-syncs from Meta first) |
+| `whatsapp_template_get` | One template with components, status and `variable_count` |
+| `whatsapp_template_create` | Submit a custom template (`components`) or instantiate a library one (`library_template_name`) |
+| `whatsapp_template_update` | Change `components` (back to PENDING review) and/or `message_send_ttl_seconds` |
+| `whatsapp_template_delete` | Delete one language (`language`) or the whole name |
+| `whatsapp_template_library_get` | Inspect a Meta library template before instantiating it |
+| `whatsapp_number_info` | Live number + WABA status: quality rating, messaging tier, name status, platform type |
+| `whatsapp_number_register` | Register the number with the Cloud API using its 6-digit PIN |
+| `whatsapp_number_request_verification_code` | SMS / voice verification code for an unverified number |
+| `whatsapp_number_verify` | Submit the verification code |
+| `whatsapp_business_profile_get` | Public profile: about, address, description, email, websites, vertical, photo |
+| `whatsapp_business_profile_update` | Update those fields (`about` ≤139, `description` ≤512, ≤2 websites) |
+| `whatsapp_business_profile_photo_update` | Replace the profile photo (`url` or base64 `data`; JPEG/PNG ≤5MB) |
+| `whatsapp_display_name_get` | Verified display name and review status |
+| `whatsapp_display_name_request_change` | Submit a new display name for Meta review |
+| `whatsapp_username_get` / `_set` / `_delete` / `_suggestions` | Manage the number's `wa.me` username |
+| `whatsapp_blocked_users_list` / `whatsapp_blocked_user_status` | Who is blocked |
+| `whatsapp_users_block` / `whatsapp_users_unblock` | Block / unblock up to 1000 numbers per call |
+| `whatsapp_groups_list` / `_create` / `_get` / `_update` / `_delete` | Groups the number administers (Cloud API numbers only) |
+| `whatsapp_group_participants_add` / `_remove` | Manage members (a group holds 8) |
+| `whatsapp_group_invite_link_create` | Fresh invite link (revokes the previous one) |
+| `whatsapp_group_join_requests_list` / `_approve` / `_reject` | Handle join requests on approval-required groups |
+| `whatsapp_dataset_get` / `whatsapp_dataset_create` | Conversions API dataset on the WABA |
+| `whatsapp_conversion_event_send` | Report a LeadSubmitted / Purchase / AddToCart / InitiateCheckout / ViewContent for a Click-to-WhatsApp conversation |
+
+#### Typical flow
+
+```
+1. profile_groups_initialize_connection   → platform: whatsapp (onboarding: api | business_app)
+2. profiles_placements                    → get phone_number_id
+3. whatsapp_templates_list                → find an APPROVED template and its variable_count
+4. dm_chat_create                         → participant_external_id: phone, placement_id: phone_number_id
+5. dm_message_send                        → template: { name, language, variables }
+6. dm_messages_list                       → the reply opens a 24h window; free-form sends now work
+```
+
+#### Connecting a number
+
+`profile_groups_initialize_connection` with `platform: "whatsapp"` returns a connect URL. Pass `onboarding: "business_app"` when the number lives in the WhatsApp Business app on a phone (the user scans a QR code; the app keeps working alongside Postproxy and up to 6 months of chats are imported) or `onboarding: "api"` when the number is with another provider or brand new (moved onto the Cloud API; no longer usable in the app). Omit it and the connect page asks. Each WhatsApp Business Account becomes one profile and each of its numbers a placement.
+
+#### Templates
+
+Meta reviews every custom template; a new one is `PENDING` until approved, and only `APPROVED` templates can be sent. Placeholders are `{{1}}`, `{{2}}`… (`parameter_format: POSITIONAL`, the default) or `{{name}}` (`NAMED`). `variable_count` on a template is the number of `variables` a send must carry: header text placeholders, then body placeholders, then one per dynamic-URL button. Library templates (`whatsapp_template_library_get` → `whatsapp_template_create` with `library_template_name`) skip review. A name is unique per language; deleting by name without `language` removes every language.
+
+#### Conversions
+
+Conversations that start from a Click-to-WhatsApp ad carry a `ctwa_clid` on the chat's `metadata`. Create a dataset once (`whatsapp_dataset_create`), then report outcomes with `whatsapp_conversion_event_send` by `chat_id` or `phone`; a chat with no captured `ctwa_clid` returns `422`.
 
 ## Example Prompts
 
@@ -1380,6 +1513,40 @@ Reply "Yes, we ship worldwide!" in chat chat_xyz789
 
 ```
 Send a DM to the author of comment cmt_abc123 on post abc123 from profile prof456 saying "DM-ing you the details"
+```
+
+```
+Open a WhatsApp chat with +1 310 555 0007 on number 1055512345 of profile prof_wa and send the order_update template in en_US with Ana and ORD-12345
+```
+
+```
+Mark chat chat_wa1 as read and react to the last inbound message with 🔥
+```
+
+### WhatsApp Business Management
+
+```
+List the approved WhatsApp templates on profile prof_wa
+```
+
+```
+Create a UTILITY template called appointment_reminder in en_US on profile prof_wa: "Hi {{1}}, your appointment is on {{2}} at {{3}}."
+```
+
+```
+Show the quality rating and messaging tier for number 1055512345 on profile prof_wa
+```
+
+```
+Update the WhatsApp business profile of number 1055512345 on prof_wa: about "Open Mon–Sat 9–18", website https://acme.example
+```
+
+```
+Block +1 310 555 0099 on number 1055512345 of profile prof_wa
+```
+
+```
+Report a Purchase of 49.90 USD for chat chat_wa1 on profile prof_wa with event id ord-9921
 ```
 
 ### View History

@@ -40,12 +40,14 @@ import type {
   ReactMessageParams,
   UploadResponse,
   SummaryResponse,
+  WhatsappTemplate,
+  WhatsappTemplatesListResponse,
 } from "../types/index.js";
 import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/errors.js";
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.17.0";
+const PACKAGE_VERSION = "1.18.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -983,6 +985,22 @@ export class PostProxyClient {
   }
 
   /**
+   * Edit a comment
+   */
+  async editComment(
+    postId: string,
+    commentId: string,
+    profileId: string,
+    body: string
+  ): Promise<CommentActionResponse> {
+    return this.request<CommentActionResponse>(
+      "PATCH",
+      `/posts/${postId}/comments/${commentId}?profile_id=${profileId}`,
+      { body }
+    );
+  }
+
+  /**
    * Hide a comment
    */
   async hideComment(
@@ -1139,6 +1157,14 @@ export class PostProxyClient {
     return this.request<Chat>("DELETE", `/chats/${encodeURIComponent(chatId)}/archive`);
   }
 
+  /**
+   * Mark a chat as read. On WhatsApp this sends the read receipt for the newest
+   * inbound message; other networks only stamp metadata.read_at.
+   */
+  async markReadChat(chatId: string): Promise<Chat> {
+    return this.request<Chat>("POST", `/chats/${encodeURIComponent(chatId)}/mark_read`);
+  }
+
   // ─── Direct Messages: messages ─────────────────────────────────────
 
   /**
@@ -1181,6 +1207,14 @@ export class PostProxyClient {
     }
     if (params.buttons && params.buttons.length > 0) payload.buttons = params.buttons;
     if (params.card) payload.card = params.card;
+    if (params.template) payload.template = params.template;
+    if (params.interactive) payload.interactive = params.interactive;
+    if (params.location) payload.location = params.location;
+    if (params.contacts && params.contacts.length > 0) payload.contacts = params.contacts;
+    if (params.category) payload.category = params.category;
+    if (params.link_preview !== undefined) payload.link_preview = params.link_preview;
+    if (params.voice_note !== undefined) payload.voice_note = params.voice_note;
+    if (params.filename) payload.filename = params.filename;
     return this.request<DirectMessage>(
       "POST",
       `/chats/${encodeURIComponent(chatId)}/messages`,
@@ -1215,6 +1249,9 @@ export class PostProxyClient {
     if (params.reply_markup) {
       formData.append("reply_markup", JSON.stringify(params.reply_markup));
     }
+    if (params.link_preview !== undefined) formData.append("link_preview", String(params.link_preview));
+    if (params.voice_note !== undefined) formData.append("voice_note", String(params.voice_note));
+    if (params.filename) formData.append("filename", params.filename);
     // Bracketed fields, not JSON — the messages endpoint requires an actual
     // array of objects, and appends per entry in key order so Rack starts a
     // new hash on each repeat. buttons/card never reach here: they can't be
@@ -1533,5 +1570,87 @@ export class PostProxyClient {
         media_name: mediaName,
       })
     );
+  }
+
+  // ─── WhatsApp ──────────────────────────────────────────────────────
+
+  private whatsappPath(
+    profileId: string,
+    action: string,
+    query: Record<string, unknown> = {}
+  ): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, Array.isArray(value) ? value.join(",") : String(value));
+      }
+    }
+    const qs = params.toString();
+    return `/profiles/${encodeURIComponent(profileId)}/whatsapp/${action}${qs ? `?${qs}` : ""}`;
+  }
+
+  async whatsappGet(profileId: string, action: string, query: Record<string, unknown>): Promise<any> {
+    return this.request<any>("GET", this.whatsappPath(profileId, action, query));
+  }
+
+  async whatsappWrite(profileId: string, method: string, action: string, body: any): Promise<any> {
+    return this.request<any>(method, this.whatsappPath(profileId, action), body);
+  }
+
+  // DELETE args go in the query string, same as the Google Business deletes.
+  async whatsappDelete(profileId: string, action: string, query: Record<string, unknown>): Promise<any> {
+    return this.request<any>("DELETE", this.whatsappPath(profileId, action, query));
+  }
+
+  private whatsappTemplatesPath(
+    profileId: string,
+    templateId?: string,
+    query: Record<string, string | undefined> = {}
+  ): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, value);
+      }
+    }
+    const qs = params.toString();
+    const base = `/profiles/${encodeURIComponent(profileId)}/templates`;
+    return `${base}${templateId ? `/${encodeURIComponent(templateId)}` : ""}${qs ? `?${qs}` : ""}`;
+  }
+
+  async listWhatsappTemplates(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<WhatsappTemplatesListResponse> {
+    return this.request<WhatsappTemplatesListResponse>("GET", this.whatsappTemplatesPath(profileId, undefined, query));
+  }
+
+  async getWhatsappTemplate(profileId: string, templateId: string, language?: string): Promise<WhatsappTemplate> {
+    return this.request<WhatsappTemplate>("GET", this.whatsappTemplatesPath(profileId, templateId, { language }));
+  }
+
+  async createWhatsappTemplate(profileId: string, body: any): Promise<WhatsappTemplate> {
+    return this.request<WhatsappTemplate>("POST", this.whatsappTemplatesPath(profileId), body);
+  }
+
+  async updateWhatsappTemplate(
+    profileId: string,
+    templateId: string,
+    body: any,
+    language?: string
+  ): Promise<WhatsappTemplate> {
+    return this.request<WhatsappTemplate>(
+      "PATCH",
+      this.whatsappTemplatesPath(profileId, templateId, { language }),
+      body
+    );
+  }
+
+  async deleteWhatsappTemplate(profileId: string, templateId: string, language?: string): Promise<any> {
+    return this.request<any>("DELETE", this.whatsappTemplatesPath(profileId, templateId, { language }));
+  }
+
+  async getWhatsappTemplateLibrary(profileId: string, name: string, language?: string): Promise<any> {
+    return this.request<any>("GET", this.whatsappTemplatesPath(profileId, "library", { name, language }));
   }
 }

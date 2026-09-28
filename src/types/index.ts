@@ -548,7 +548,9 @@ export interface DMAttachment {
 export interface Chat {
   id: string;
   profile_id: string;
-  platform: string; // facebook | instagram | telegram | bluesky
+  platform: string; // facebook | instagram | telegram | bluesky | whatsapp
+  external_placement_id?: string | null; // WhatsApp phone number id / Facebook page id
+  group?: boolean; // WhatsApp group chat
   participant_external_id: string;
   participant_username: string | null;
   participant_name: string | null;
@@ -559,6 +561,7 @@ export interface Chat {
   last_message_at: string | null;
   metadata: Record<string, any> | null;
   archived?: boolean; // present on Bluesky archive/unarchive responses
+  within_messaging_window?: boolean; // WhatsApp only
   created_at: string;
 }
 
@@ -586,6 +589,10 @@ export interface DirectMessage {
   buttons?: DMButton[] | null;
   card?: DMCard | null;
   tapped_action?: DMTappedAction | null;
+  interactive?: Record<string, any> | null; // WhatsApp interactive payload
+  location?: WhatsappLocation | null; // WhatsApp location message
+  contacts?: Record<string, any>[] | null; // WhatsApp contact cards
+  template?: WhatsappMessageTemplateRef | null; // WhatsApp template send
   external_deleted_at?: string | null;
   reactions?: DMReaction[];
   attachments?: DMAttachment[];
@@ -616,6 +623,7 @@ export interface ListChatsParams {
 
 export interface CreateChatParams {
   participant_external_id: string;
+  placement_id?: string; // required for WhatsApp (phone number id), optional Facebook page id
   participant_username?: string;
   participant_name?: string;
 }
@@ -636,6 +644,61 @@ export interface SendMessageParams {
   quick_replies?: DMQuickReply[]; // Facebook/Instagram only, max 13
   buttons?: DMButton[]; // Facebook/Instagram only, max 3
   card?: DMCard; // requires buttons
+  template?: WhatsappTemplateSend; // WhatsApp only
+  interactive?: Record<string, any>; // WhatsApp only
+  location?: WhatsappLocation; // WhatsApp only
+  contacts?: Record<string, any>[]; // WhatsApp only
+  category?: "utility"; // WhatsApp only
+  link_preview?: boolean; // WhatsApp only
+  voice_note?: boolean; // WhatsApp only
+  filename?: string; // WhatsApp only
+}
+
+export interface WhatsappLocation {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+export interface WhatsappTemplateSend {
+  id?: string;
+  name?: string;
+  language?: string;
+  variables?: string[];
+  button_params?: { index: number; sub_type: string; parameters?: unknown[] }[];
+  header_media?: { link?: string; id?: string };
+  header_location?: WhatsappLocation;
+}
+
+export interface WhatsappMessageTemplateRef {
+  id: string;
+  external_id: string | null;
+  name: string;
+  language: string;
+  variables: string[] | null;
+}
+
+export interface WhatsappTemplate {
+  id: string;
+  external_id: string | null;
+  profile_id: string;
+  name: string;
+  language: string;
+  category: string | null;
+  status: string | null;
+  parameter_format: string | null;
+  components: unknown[] | null;
+  message_send_ttl_seconds?: number;
+  rejected_reason?: string;
+  quality_score?: Record<string, any>;
+  variable_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WhatsappTemplatesListResponse {
+  data: WhatsappTemplate[];
 }
 
 export interface PrivateReplyParams {

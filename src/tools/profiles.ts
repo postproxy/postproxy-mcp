@@ -108,6 +108,7 @@ export async function handleProfileGroupsInitializeConnection(
     identifier?: string;
     app_password?: string;
     bot_token?: string;
+    onboarding?: "api" | "business_app";
   }
 ) {
   logToolCall("profile_groups.initialize_connection", args);
@@ -142,6 +143,7 @@ export async function handleProfileGroupsInitializeConnection(
   if (args.identifier) body.identifier = args.identifier;
   if (args.app_password) body.app_password = args.app_password;
   if (args.bot_token) body.bot_token = args.bot_token;
+  if (args.platform === "whatsapp" && args.onboarding) body.onboarding = args.onboarding;
 
   try {
     const result = await client.initializeProfileGroupConnection(

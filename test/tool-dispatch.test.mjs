@@ -83,3 +83,17 @@ test('tools that publish or send to third-party platforms are marked destructive
     assert.equal(tool.annotations.openWorldHint, true, `${name} should be openWorldHint: true`);
   }
 });
+
+test('whatsapp tools all take profile_id; phone-scoped ones also phone_number_id', () => {
+  const wa = TOOL_DEFINITIONS.filter((t) => t.name.startsWith('whatsapp_'));
+  assert.equal(wa.length, 37);
+  const wabaLevel = /^whatsapp_(templates?_|dataset_|conversion_)/;
+  for (const tool of wa) {
+    assert.ok(tool.inputSchema.required.includes('profile_id'), `${tool.name} must require profile_id`);
+    if (wabaLevel.test(tool.name)) {
+      assert.ok(!tool.inputSchema.required.includes('phone_number_id'), `${tool.name} is WABA-level and must not require phone_number_id`);
+    } else {
+      assert.ok(tool.inputSchema.required.includes('phone_number_id'), `${tool.name} must require phone_number_id`);
+    }
+  }
+});

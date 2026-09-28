@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.17.0";
+const PACKAGE_VERSION = "1.18.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -271,7 +271,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
   private async handleProfileGroupsInitializeConnection(args: any): Promise<string> {
     this.getApiKey();
-    const { profile_group_id, platform, identifier, app_password, bot_token } = args || {};
+    const { profile_group_id, platform, identifier, app_password, bot_token, onboarding } = args || {};
     if (!profile_group_id) throw new Error("profile_group_id is required");
     if (!platform) throw new Error("platform is required");
     if (platform === "bluesky" && (!identifier || !app_password)) {
@@ -287,6 +287,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     if (identifier) body.identifier = identifier;
     if (app_password) body.app_password = app_password;
     if (bot_token) body.bot_token = bot_token;
+    if (platform === "whatsapp" && onboarding) body.onboarding = onboarding;
 
     const response = await this.apiRequest<any>(
       "POST",
@@ -736,6 +737,22 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(response, null, 2);
   }
 
+  private async handleCommentsEdit(args: any): Promise<string> {
+    this.getApiKey();
+    const { post_id, comment_id, profile_id, body } = args;
+    if (!post_id) throw new Error("post_id is required");
+    if (!comment_id) throw new Error("comment_id is required");
+    if (!profile_id) throw new Error("profile_id is required");
+    if (!body || !String(body).trim()) throw new Error("body is required");
+
+    const response = await this.apiRequest<any>(
+      "PATCH",
+      `/posts/${post_id}/comments/${comment_id}?profile_id=${profile_id}`,
+      { body }
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
   private async handleCommentsHide(args: any): Promise<string> {
     this.getApiKey();
     const { post_id, comment_id, profile_id } = args;
@@ -874,11 +891,12 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
   private async handleDmChatCreate(args: any): Promise<string> {
     this.getApiKey();
-    const { profile_id, participant_external_id, participant_username, participant_name } = args;
+    const { profile_id, participant_external_id, placement_id, participant_username, participant_name } = args;
     if (!profile_id) throw new Error("profile_id is required");
     if (!participant_external_id) throw new Error("participant_external_id is required");
 
     const body: any = { participant_external_id };
+    if (placement_id) body.placement_id = placement_id;
     if (participant_username) body.participant_username = participant_username;
     if (participant_name) body.participant_name = participant_name;
 
@@ -928,7 +946,14 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
     const hasBody = typeof args.body === "string" && args.body.length > 0;
     const hasMedia = Array.isArray(args.media) && args.media.length > 0;
-    if (!hasBody && !hasMedia) throw new Error("body or media is required");
+    const hasWhatsappPayload =
+      !!args.template ||
+      !!args.interactive ||
+      !!args.location ||
+      (Array.isArray(args.contacts) && args.contacts.length > 0);
+    if (!hasBody && !hasMedia && !hasWhatsappPayload) {
+      throw new Error("body, media, template, interactive, location or contacts is required");
+    }
     if (Array.isArray(args.media) && args.media.length > 1) {
       throw new Error("Direct messages support one attachment per send");
     }
@@ -946,6 +971,14 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     }
     if (Array.isArray(args.buttons) && args.buttons.length > 0) body.buttons = args.buttons;
     if (args.card) body.card = args.card;
+    if (args.template) body.template = args.template;
+    if (args.interactive) body.interactive = args.interactive;
+    if (args.location) body.location = args.location;
+    if (Array.isArray(args.contacts) && args.contacts.length > 0) body.contacts = args.contacts;
+    if (args.category) body.category = args.category;
+    if (args.link_preview !== undefined) body.link_preview = args.link_preview;
+    if (args.voice_note !== undefined) body.voice_note = args.voice_note;
+    if (args.filename) body.filename = args.filename;
 
     const response = await this.apiRequest<any>(
       "POST",
@@ -1036,6 +1069,18 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const response = await this.apiRequest<any>(
       "DELETE",
       `/chats/${encodeURIComponent(chat_id)}/archive`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmChatMarkRead(args: any): Promise<string> {
+    this.getApiKey();
+    const { chat_id } = args;
+    if (!chat_id) throw new Error("chat_id is required");
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/chats/${encodeURIComponent(chat_id)}/mark_read`
     );
     return JSON.stringify(response, null, 2);
   }
@@ -1247,6 +1292,273 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     });
   }
 
+  // ─── WhatsApp ──────────────────────────────────────────────────────
+  //
+  // The WABA is the profile, each phone number a placement: phone-scoped calls
+  // take phone_number_id (the placement id from profiles_placements),
+  // templates and the Conversions dataset only profile_id.
+
+  private whatsappPath(profileId: string, action: string, query: Record<string, unknown> = {}): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, Array.isArray(value) ? value.join(",") : String(value));
+      }
+    }
+    const qs = params.toString();
+    return `/profiles/${encodeURIComponent(profileId)}/whatsapp/${action}${qs ? `?${qs}` : ""}`;
+  }
+
+  private whatsappTemplatesPath(profileId: string, templateId?: string, query: Record<string, unknown> = {}): string {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, String(value));
+      }
+    }
+    const qs = params.toString();
+    const base = `/profiles/${encodeURIComponent(profileId)}/templates`;
+    return `${base}${templateId ? `/${encodeURIComponent(templateId)}` : ""}${qs ? `?${qs}` : ""}`;
+  }
+
+  private requireWhatsappArgs(args: any, keys: string[]): void {
+    for (const key of keys) {
+      const value = args?.[key];
+      if (value === undefined || value === null || value === "") {
+        throw new Error(`${key} is required`);
+      }
+    }
+  }
+
+  private async whatsappGet(args: any, action: string, required: string[] = []): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "phone_number_id", ...required]);
+    const { profile_id, ...query } = args;
+    const response = await this.apiRequest<any>("GET", this.whatsappPath(profile_id, action, query));
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async whatsappWrite(args: any, method: string, action: string, required: string[] = []): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "phone_number_id", ...required]);
+    const { profile_id, ...body } = args;
+    const response = await this.apiRequest<any>(method, this.whatsappPath(profile_id, action), body);
+    return JSON.stringify(response, null, 2);
+  }
+
+  // DELETE args go in the query string, same as the Google Business deletes.
+  private async whatsappDelete(args: any, action: string, required: string[] = []): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "phone_number_id", ...required]);
+    const { profile_id, ...query } = args;
+    const response = await this.apiRequest<any>("DELETE", this.whatsappPath(profile_id, action, query));
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappTemplatesList(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id"]);
+    const response = await this.apiRequest<any>(
+      "GET",
+      this.whatsappTemplatesPath(args.profile_id, undefined, {
+        name: args?.name,
+        language: args?.language,
+        status: args?.status,
+        refresh: args?.refresh,
+      })
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappTemplateGet(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "template_id"]);
+    const response = await this.apiRequest<any>(
+      "GET",
+      this.whatsappTemplatesPath(args.profile_id, args.template_id, { language: args?.language })
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappTemplateCreate(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "name", "category", "language"]);
+    const { profile_id, ...body } = args;
+    const response = await this.apiRequest<any>("POST", this.whatsappTemplatesPath(profile_id), body);
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappTemplateUpdate(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "template_id"]);
+    if (args.components === undefined && args.message_send_ttl_seconds === undefined) {
+      throw new Error("components or message_send_ttl_seconds is required");
+    }
+    const { profile_id, template_id, language, ...body } = args;
+    const response = await this.apiRequest<any>(
+      "PATCH",
+      this.whatsappTemplatesPath(profile_id, template_id, { language }),
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappTemplateDelete(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "template_id"]);
+    const response = await this.apiRequest<any>(
+      "DELETE",
+      this.whatsappTemplatesPath(args.profile_id, args.template_id, { language: args?.language })
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappTemplateLibraryGet(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "name"]);
+    const response = await this.apiRequest<any>(
+      "GET",
+      this.whatsappTemplatesPath(args.profile_id, "library", { name: args.name, language: args?.language })
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappNumberInfo(args: any): Promise<string> {
+    return this.whatsappGet(args, "number_info");
+  }
+
+  private async handleWhatsappNumberRegister(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "register_phone_number");
+  }
+
+  private async handleWhatsappNumberRequestVerificationCode(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "request_verification_code");
+  }
+
+  private async handleWhatsappNumberVerify(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "verify_phone_number", ["code"]);
+  }
+
+  private async handleWhatsappBusinessProfileGet(args: any): Promise<string> {
+    return this.whatsappGet(args, "business_profile");
+  }
+
+  private async handleWhatsappBusinessProfileUpdate(args: any): Promise<string> {
+    return this.whatsappWrite(args, "PATCH", "update_business_profile");
+  }
+
+  private async handleWhatsappBusinessProfilePhotoUpdate(args: any): Promise<string> {
+    if (!args?.url && !args?.data) throw new Error("url or data is required");
+    return this.whatsappWrite(args, "POST", "update_business_profile_photo");
+  }
+
+  private async handleWhatsappDisplayNameGet(args: any): Promise<string> {
+    return this.whatsappGet(args, "display_name");
+  }
+
+  private async handleWhatsappDisplayNameRequestChange(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "request_display_name_change", ["display_name"]);
+  }
+
+  private async handleWhatsappUsernameGet(args: any): Promise<string> {
+    return this.whatsappGet(args, "username");
+  }
+
+  private async handleWhatsappUsernameSet(args: any): Promise<string> {
+    return this.whatsappWrite(args, "PUT", "set_username", ["username"]);
+  }
+
+  private async handleWhatsappUsernameDelete(args: any): Promise<string> {
+    return this.whatsappDelete(args, "delete_username");
+  }
+
+  private async handleWhatsappUsernameSuggestions(args: any): Promise<string> {
+    return this.whatsappGet(args, "username_suggestions");
+  }
+
+  private async handleWhatsappBlockedUsersList(args: any): Promise<string> {
+    return this.whatsappGet(args, "blocked_users");
+  }
+
+  private async handleWhatsappBlockedUserStatus(args: any): Promise<string> {
+    return this.whatsappGet(args, "blocked_user_status", ["user"]);
+  }
+
+  private async handleWhatsappUsersBlock(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "block_users", ["users"]);
+  }
+
+  private async handleWhatsappUsersUnblock(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "unblock_users", ["users"]);
+  }
+
+  private async handleWhatsappGroupsList(args: any): Promise<string> {
+    return this.whatsappGet(args, "groups");
+  }
+
+  private async handleWhatsappGroupCreate(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "create_group", ["subject"]);
+  }
+
+  private async handleWhatsappGroupGet(args: any): Promise<string> {
+    return this.whatsappGet(args, "group", ["group_id"]);
+  }
+
+  private async handleWhatsappGroupUpdate(args: any): Promise<string> {
+    return this.whatsappWrite(args, "PATCH", "update_group", ["group_id"]);
+  }
+
+  private async handleWhatsappGroupDelete(args: any): Promise<string> {
+    return this.whatsappDelete(args, "delete_group", ["group_id"]);
+  }
+
+  private async handleWhatsappGroupParticipantsAdd(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "add_group_participants", ["group_id", "phone_numbers"]);
+  }
+
+  private async handleWhatsappGroupParticipantsRemove(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "remove_group_participants", ["group_id", "phone_numbers"]);
+  }
+
+  private async handleWhatsappGroupInviteLinkCreate(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "create_group_invite_link", ["group_id"]);
+  }
+
+  private async handleWhatsappGroupJoinRequestsList(args: any): Promise<string> {
+    return this.whatsappGet(args, "group_join_requests", ["group_id"]);
+  }
+
+  private async handleWhatsappGroupJoinRequestsApprove(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "approve_group_join_requests", ["group_id", "phone_numbers"]);
+  }
+
+  private async handleWhatsappGroupJoinRequestsReject(args: any): Promise<string> {
+    return this.whatsappWrite(args, "POST", "reject_group_join_requests", ["group_id", "phone_numbers"]);
+  }
+
+  private async handleWhatsappDatasetGet(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id"]);
+    const response = await this.apiRequest<any>("GET", this.whatsappPath(args.profile_id, "dataset"));
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappDatasetCreate(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id"]);
+    const response = await this.apiRequest<any>("POST", this.whatsappPath(args.profile_id, "create_dataset"), {});
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleWhatsappConversionEventSend(args: any): Promise<string> {
+    this.getApiKey();
+    this.requireWhatsappArgs(args, ["profile_id", "event_name", "event_id"]);
+    if (!args.chat_id && !args.phone) throw new Error("chat_id or phone is required");
+    const { profile_id, ...body } = args;
+    const response = await this.apiRequest<any>("POST", this.whatsappPath(profile_id, "send_conversion_event"), body);
+    return JSON.stringify(response, null, 2);
+  }
+
   // ─── MCP JSON-RPC Handler ──────────────────────────────────────────
 
   private async handleToolCall(name: string, args: any): Promise<string> {
@@ -1303,6 +1615,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleCommentsCreate(args);
       case "comments_delete":
         return await this.handleCommentsDelete(args);
+      case "comments_edit":
+        return await this.handleCommentsEdit(args);
       case "comments_hide":
         return await this.handleCommentsHide(args);
       case "comments_unhide":
@@ -1341,6 +1655,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleDmChatArchive(args);
       case "dm_chat_unarchive":
         return await this.handleDmChatUnarchive(args);
+      case "dm_chat_mark_read":
+        return await this.handleDmChatMarkRead(args);
       case "dm_comment_private_reply":
         return await this.handleDmCommentPrivateReply(args);
       case "google_business_location_get":
@@ -1379,6 +1695,80 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleGoogleBusinessMediaCreate(args);
       case "google_business_media_delete":
         return await this.handleGoogleBusinessMediaDelete(args);
+      case "whatsapp_templates_list":
+        return await this.handleWhatsappTemplatesList(args);
+      case "whatsapp_template_get":
+        return await this.handleWhatsappTemplateGet(args);
+      case "whatsapp_template_create":
+        return await this.handleWhatsappTemplateCreate(args);
+      case "whatsapp_template_update":
+        return await this.handleWhatsappTemplateUpdate(args);
+      case "whatsapp_template_delete":
+        return await this.handleWhatsappTemplateDelete(args);
+      case "whatsapp_template_library_get":
+        return await this.handleWhatsappTemplateLibraryGet(args);
+      case "whatsapp_number_info":
+        return await this.handleWhatsappNumberInfo(args);
+      case "whatsapp_number_register":
+        return await this.handleWhatsappNumberRegister(args);
+      case "whatsapp_number_request_verification_code":
+        return await this.handleWhatsappNumberRequestVerificationCode(args);
+      case "whatsapp_number_verify":
+        return await this.handleWhatsappNumberVerify(args);
+      case "whatsapp_business_profile_get":
+        return await this.handleWhatsappBusinessProfileGet(args);
+      case "whatsapp_business_profile_update":
+        return await this.handleWhatsappBusinessProfileUpdate(args);
+      case "whatsapp_business_profile_photo_update":
+        return await this.handleWhatsappBusinessProfilePhotoUpdate(args);
+      case "whatsapp_display_name_get":
+        return await this.handleWhatsappDisplayNameGet(args);
+      case "whatsapp_display_name_request_change":
+        return await this.handleWhatsappDisplayNameRequestChange(args);
+      case "whatsapp_username_get":
+        return await this.handleWhatsappUsernameGet(args);
+      case "whatsapp_username_set":
+        return await this.handleWhatsappUsernameSet(args);
+      case "whatsapp_username_delete":
+        return await this.handleWhatsappUsernameDelete(args);
+      case "whatsapp_username_suggestions":
+        return await this.handleWhatsappUsernameSuggestions(args);
+      case "whatsapp_blocked_users_list":
+        return await this.handleWhatsappBlockedUsersList(args);
+      case "whatsapp_blocked_user_status":
+        return await this.handleWhatsappBlockedUserStatus(args);
+      case "whatsapp_users_block":
+        return await this.handleWhatsappUsersBlock(args);
+      case "whatsapp_users_unblock":
+        return await this.handleWhatsappUsersUnblock(args);
+      case "whatsapp_groups_list":
+        return await this.handleWhatsappGroupsList(args);
+      case "whatsapp_group_create":
+        return await this.handleWhatsappGroupCreate(args);
+      case "whatsapp_group_get":
+        return await this.handleWhatsappGroupGet(args);
+      case "whatsapp_group_update":
+        return await this.handleWhatsappGroupUpdate(args);
+      case "whatsapp_group_delete":
+        return await this.handleWhatsappGroupDelete(args);
+      case "whatsapp_group_participants_add":
+        return await this.handleWhatsappGroupParticipantsAdd(args);
+      case "whatsapp_group_participants_remove":
+        return await this.handleWhatsappGroupParticipantsRemove(args);
+      case "whatsapp_group_invite_link_create":
+        return await this.handleWhatsappGroupInviteLinkCreate(args);
+      case "whatsapp_group_join_requests_list":
+        return await this.handleWhatsappGroupJoinRequestsList(args);
+      case "whatsapp_group_join_requests_approve":
+        return await this.handleWhatsappGroupJoinRequestsApprove(args);
+      case "whatsapp_group_join_requests_reject":
+        return await this.handleWhatsappGroupJoinRequestsReject(args);
+      case "whatsapp_dataset_get":
+        return await this.handleWhatsappDatasetGet(args);
+      case "whatsapp_dataset_create":
+        return await this.handleWhatsappDatasetCreate(args);
+      case "whatsapp_conversion_event_send":
+        return await this.handleWhatsappConversionEventSend(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
