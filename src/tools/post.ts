@@ -12,7 +12,7 @@ import { logError } from "../utils/logger.js";
 export async function handlePostPublish(
   client: PostProxyClient,
   args: {
-    content: string;
+    content?: string;
     profiles: string[];
     schedule?: string;
     media?: string[];
@@ -32,6 +32,9 @@ export async function handlePostPublish(
     throw createError(ErrorCodes.VALIDATION_ERROR, `Invalid input: ${error.message}`);
   }
 
+  // Stories may omit content (validated above)
+  const content = args.content ?? "";
+
   // If require_confirmation, return summary without publishing
   if (args.require_confirmation) {
     return {
@@ -42,7 +45,7 @@ export async function handlePostPublish(
             {
               summary: {
                 profiles: args.profiles,
-                content_preview: args.content.substring(0, 100) + (args.content.length > 100 ? "..." : ""),
+                content_preview: content.substring(0, 100) + (content.length > 100 ? "..." : ""),
                 media_count: args.media?.length || 0,
                 schedule_time: args.schedule,
                 draft: args.draft || false,
@@ -64,9 +67,10 @@ export async function handlePostPublish(
 
   // Generate idempotency key if not provided
   const idempotencyKey = args.idempotency_key || generateIdempotencyKey(
-    args.content,
+    content,
     args.profiles,
-    args.schedule
+    args.schedule,
+    args.media
   );
 
   // Validate draft parameter is correctly passed
@@ -76,7 +80,7 @@ export async function handlePostPublish(
   // Create post
   try {
     const response = await client.createPost({
-      content: args.content,
+      content,
       profiles: args.profiles, // API accepts both profile IDs (hashids) and platform names
       schedule: args.schedule,
       media: args.media,

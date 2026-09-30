@@ -280,7 +280,7 @@ export const TOOL_DEFINITIONS = [
       properties: {
         content: {
           type: "string",
-          description: "Post content text (caption/description)",
+          description: "Post content text (caption/description). Required except for Stories: when instagram/facebook format is 'story', omit it or pass an empty string — Stories can't carry body text.",
         },
         profiles: {
           type: "array",
@@ -314,7 +314,7 @@ export const TOOL_DEFINITIONS = [
           properties: {
             instagram: {
               type: "object",
-              description: "Instagram: format (post|reel|story), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
+              description: "Instagram: format (post|reel|story; story requires empty content), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
               additionalProperties: true,
             },
             youtube: {
@@ -329,7 +329,7 @@ export const TOOL_DEFINITIONS = [
             },
             facebook: {
               type: "object",
-              description: "Facebook: format (post|story|reel), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages)",
+              description: "Facebook: format (post|story|reel; story requires empty content), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages)",
               additionalProperties: true,
             },
             linkedin: {
@@ -399,7 +399,7 @@ export const TOOL_DEFINITIONS = [
           description: "Optional priority when adding to a queue (default: medium). Higher priority posts get earlier timeslots.",
         },
       },
-      required: ["content", "profiles"],
+      required: ["profiles"],
     },
   },
   {
@@ -3050,7 +3050,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.18.0",
+      version: "1.18.1",
     },
     {
       capabilities: {

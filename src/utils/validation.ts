@@ -190,7 +190,7 @@ export const ThreadChildSchema = z.object({
  * Schema for post.publish parameters
  */
 export const PostPublishSchema = z.object({
-  content: z.string().min(1, "Content cannot be empty"),
+  content: z.string().optional(),
   profiles: z.array(z.string()).min(1, "At least one profile is required"),
   schedule: ISO8601DateSchema.optional(),
   media: z.array(MediaItemSchema).optional(),
@@ -199,7 +199,26 @@ export const PostPublishSchema = z.object({
   draft: z.boolean().optional(),
   platforms: PlatformParamsSchema,
   thread: z.array(ThreadChildSchema).optional(),
+}).superRefine((args, ctx) => {
+  if ((args.content ?? "").trim() === "" && !hasStoryFormat(args.platforms)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["content"],
+      message: "Content cannot be empty (only Story posts may omit content)",
+    });
+  }
 });
+
+/**
+ * True when any platform is set to the story format. Stories can't carry body
+ * text (the API rejects it), so post_publish lets content be empty for them.
+ */
+export function hasStoryFormat(platforms: unknown): boolean {
+  if (!platforms || typeof platforms !== "object") return false;
+  return Object.values(platforms as Record<string, any>).some(
+    (params) => params && typeof params === "object" && params.format === "story"
+  );
+}
 
 /**
  * Pre-flight validation for the interactive elements of an outbound Meta DM —

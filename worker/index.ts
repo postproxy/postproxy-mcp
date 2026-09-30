@@ -9,9 +9,9 @@
 
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
-import { validateDmInteractive } from "../src/utils/validation.js";
+import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.0";
+const PACKAGE_VERSION = "1.18.1";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -193,12 +193,15 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   private async generateIdempotencyKey(
     content: string,
     targets: string[],
-    schedule?: string
+    schedule?: string,
+    media?: string[]
   ): Promise<string> {
     const data = JSON.stringify({
       content: content.trim(),
       targets: [...targets].sort(),
       schedule: schedule || "",
+      // Media distinguishes posts with no text (e.g. stories)
+      media: [...(media || [])].sort(),
     });
 
     const encoder = new TextEncoder();
@@ -306,7 +309,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   private async handlePostPublish(args: any): Promise<string> {
     this.getApiKey();
 
-    const content: string = args.content;
+    const content: string = args.content ?? "";
     const profileIds: string[] = args.profiles;
     const schedule: string | undefined = args.schedule;
     const mediaUrls: string[] = args.media || [];
@@ -318,7 +321,9 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const queueId: string | undefined = args.queue_id;
     const queuePriority: string | undefined = args.queue_priority;
 
-    if (!content || content.trim() === "") throw new Error("Content cannot be empty");
+    if (content.trim() === "" && !hasStoryFormat(platformParams)) {
+      throw new Error("Content cannot be empty (only Story posts may omit content)");
+    }
     if (!profileIds || profileIds.length === 0) throw new Error("At least one profile is required");
 
     if (requireConfirmation) {
@@ -340,7 +345,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     }
 
     const finalIdempotencyKey =
-      idempotencyKey || (await this.generateIdempotencyKey(content, profileIds, schedule));
+      idempotencyKey || (await this.generateIdempotencyKey(content, profileIds, schedule, mediaUrls));
 
     const apiPayload: any = {
       post: { body: content },
