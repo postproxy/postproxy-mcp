@@ -429,7 +429,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Publish Draft",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -1006,7 +1006,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Edit Comment",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2157,7 +2157,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Update Google Business Place Action Link",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2348,7 +2348,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Update WhatsApp Template",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2509,7 +2509,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Update WhatsApp Business Profile",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2534,7 +2534,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Update WhatsApp Business Profile Photo",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2575,7 +2575,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Request WhatsApp Display Name Change",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -2614,7 +2614,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Set WhatsApp Username",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2817,7 +2817,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Update WhatsApp Group",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2881,7 +2881,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Remove WhatsApp Group Participants",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2902,7 +2902,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Create WhatsApp Group Invite Link",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
@@ -2963,7 +2963,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Reject WhatsApp Group Join Requests",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
