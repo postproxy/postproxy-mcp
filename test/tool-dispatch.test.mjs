@@ -79,6 +79,7 @@ test('tools that publish or send to third-party platforms are marked destructive
     'whatsapp_template_update', 'whatsapp_business_profile_update', 'whatsapp_business_profile_photo_update',
     'whatsapp_display_name_request_change', 'whatsapp_username_set', 'whatsapp_group_update',
     'whatsapp_group_participants_remove', 'whatsapp_group_invite_link_create', 'whatsapp_group_join_requests_reject',
+    'dm_message_react', 'comments_like', 'whatsapp_users_block',
   ];
   for (const name of irreversible) {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === name);

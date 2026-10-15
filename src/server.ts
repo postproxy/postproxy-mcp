@@ -1097,7 +1097,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Like Comment",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -1623,7 +1623,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "React to Message",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2406,7 +2406,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "whatsapp_number_info",
-    description: "Read the live state of a WhatsApp phone number from Meta: display_phone_number, verified_name, name_status, quality_rating, messaging_limit_tier, throughput, status, platform_type (CLOUD_API vs a coexistence number still in the WhatsApp Business app), plus the Business Account's review and verification status. Also refreshes the placement's stored metadata.",
+    description: "Read the live state of a WhatsApp phone number from Meta: display_phone_number, verified_name, name_status, quality_rating, messaging_limit_tier, throughput, status, platform_type (CLOUD_API vs a coexistence number still in the WhatsApp Business app), plus the Business Account's review and verification status.",
     annotations: {
       title: "Get WhatsApp Number Info",
       readOnlyHint: true,
@@ -2714,7 +2714,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Block WhatsApp Users",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
