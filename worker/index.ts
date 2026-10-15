@@ -12,6 +12,28 @@ import { TOOL_DEFINITIONS } from "../src/server.js";
 import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 
 const PACKAGE_VERSION = "1.18.1";
+
+// The remote server never asks the user for credentials or one-time codes in
+// chat (OpenAI plugin review treats that as collecting access secrets). Those
+// steps happen in the Postproxy web app instead; the local stdio server keeps
+// them.
+const REMOTE_HIDDEN_TOOLS = new Set([
+  "whatsapp_number_register",
+  "whatsapp_number_request_verification_code",
+  "whatsapp_number_verify",
+]);
+const CREDENTIAL_CONNECT_PLATFORMS = new Set(["bluesky", "telegram"]);
+
+const REMOTE_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((t) => !REMOTE_HIDDEN_TOOLS.has(t.name)).map((t) => {
+  if (t.name !== "profile_groups_initialize_connection") return t;
+  const { identifier, app_password, bot_token, ...properties } = t.inputSchema.properties as Record<string, unknown>;
+  return {
+    ...t,
+    description:
+      "Generate a URL to connect a new social media profile to a profile group (initiates the OAuth/connect flow). The returned URL should be opened by the user to complete the connection. For whatsapp, optionally pass onboarding ('api' or 'business_app'); when omitted the connect page asks the user where their number lives. Bluesky and Telegram need credentials, so they are connected in the Postproxy web app rather than here.",
+    inputSchema: { ...t.inputSchema, properties },
+  };
+});
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (cloudflare-worker)`;
 
 interface Env {
@@ -274,22 +296,24 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
 
   private async handleProfileGroupsInitializeConnection(args: any): Promise<string> {
     this.getApiKey();
-    const { profile_group_id, platform, identifier, app_password, bot_token, onboarding } = args || {};
+    const { profile_group_id, platform, onboarding } = args || {};
     if (!profile_group_id) throw new Error("profile_group_id is required");
     if (!platform) throw new Error("platform is required");
-    if (platform === "bluesky" && (!identifier || !app_password)) {
-      throw new Error("identifier and app_password are required for bluesky");
-    }
-    if (platform === "telegram" && !bot_token) {
-      throw new Error("bot_token is required for telegram");
+    if (CREDENTIAL_CONNECT_PLATFORMS.has(platform)) {
+      return JSON.stringify(
+        {
+          success: false,
+          url: this.appUrl,
+          message: `${platform === "bluesky" ? "Bluesky" : "Telegram"} is connected with ${platform === "bluesky" ? "a handle and app password" : "a bot token"}, which can't be entered in chat. Open ${this.appUrl}, choose the profile group, and connect ${platform === "bluesky" ? "Bluesky" : "Telegram"} there.`,
+        },
+        null,
+        2
+      );
     }
 
     // MCP has no browser to redirect back to, so we never send redirect_url and
     // always force the API to return a URL the user opens manually.
     const body: Record<string, unknown> = { platform, force_no_redirect: true };
-    if (identifier) body.identifier = identifier;
-    if (app_password) body.app_password = app_password;
-    if (bot_token) body.bot_token = bot_token;
     if (platform === "whatsapp" && onboarding) body.onboarding = onboarding;
 
     const response = await this.apiRequest<any>(
@@ -1567,6 +1591,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   // ─── MCP JSON-RPC Handler ──────────────────────────────────────────
 
   private async handleToolCall(name: string, args: any): Promise<string> {
+    if (REMOTE_HIDDEN_TOOLS.has(name)) throw new Error(`Unknown tool: ${name}`);
     switch (name) {
       case "auth_status":
         return await this.handleAuthStatus();
@@ -1807,7 +1832,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       case "tools/list":
         return {
           jsonrpc: "2.0",
-          result: { tools: [...TOOL_DEFINITIONS] },
+          result: { tools: [...REMOTE_TOOL_DEFINITIONS] },
           id,
         };
 
@@ -1942,7 +1967,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
           documentation: "https://postproxy.dev/getting-started/authentication/",
           authentication:
             "Handshake (initialize/ping) is public; tools/list and tools/call on /mcp require 'Authorization: Bearer YOUR_API_KEY'",
-          tools: TOOL_DEFINITIONS.map((t) => t.name),
+          tools: REMOTE_TOOL_DEFINITIONS.map((t) => t.name),
         },
         { headers: this.corsHeaders }
       );
@@ -2035,7 +2060,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         name: "postproxy-mcp",
         version: PACKAGE_VERSION,
         description: "MCP server for Postproxy - Social Media Management",
-        tools: TOOL_DEFINITIONS.map((t) => t.name),
+        tools: REMOTE_TOOL_DEFINITIONS.map((t) => t.name),
       },
       { headers: this.corsHeaders }
     );
