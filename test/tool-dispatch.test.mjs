@@ -52,7 +52,7 @@ test('every tool declares a description, annotations and an input schema', () =>
 
 test('google business tools all take profile_id and location_id', () => {
   const gb = TOOL_DEFINITIONS.filter((t) => t.name.startsWith('google_business_'));
-  assert.equal(gb.length, 18);
+  assert.equal(gb.length, 19);
   for (const tool of gb) {
     assert.ok(tool.inputSchema.required.includes('profile_id'), `${tool.name} must require profile_id`);
     assert.ok(tool.inputSchema.required.includes('location_id'), `${tool.name} must require location_id`);

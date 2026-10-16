@@ -954,6 +954,7 @@ Payloads use Google's own shapes and camelCased keys in both directions, so a re
 | `google_business_food_menus_get` | Read food menus (restaurant-like categories only) |
 | `google_business_food_menus_update` | Replace food menus (needs `metadata.canHaveFoodMenus`) |
 | `google_business_place_action_links_list` | List action buttons ("Book online", "Order online") |
+| `google_business_place_action_types_available` | List action types Google accepts for the location |
 | `google_business_place_action_link_create` | Add an action button |
 | `google_business_place_action_link_update` | Update an action button |
 | `google_business_place_action_link_delete` | Remove an action button |

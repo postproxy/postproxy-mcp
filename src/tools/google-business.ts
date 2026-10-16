@@ -276,6 +276,30 @@ export async function handleGoogleBusinessPlaceActionLinksList(
   );
 }
 
+export async function handleGoogleBusinessPlaceActionTypesAvailable(
+  client: PostProxyClient,
+  args: {
+    profile_id: string;
+    location_id: string;
+    language_code?: string;
+    page_size?: number;
+    page_token?: string;
+  }
+) {
+  logToolCall("google_business_place_action_types_available", args);
+  requireArgs(args, ["profile_id", "location_id"]);
+  requireApiKey();
+
+  return run("google_business_place_action_types_available", () =>
+    client.listGoogleBusinessAvailablePlaceActionTypes(args.profile_id, {
+      location_id: args.location_id,
+      language_code: args.language_code,
+      page_size: args.page_size?.toString(),
+      page_token: args.page_token,
+    })
+  );
+}
+
 export async function handleGoogleBusinessPlaceActionLinkCreate(
   client: PostProxyClient,
   args: {

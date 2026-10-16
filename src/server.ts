@@ -72,6 +72,7 @@ import {
   handleGoogleBusinessFoodMenusGet,
   handleGoogleBusinessFoodMenusUpdate,
   handleGoogleBusinessPlaceActionLinksList,
+  handleGoogleBusinessPlaceActionTypesAvailable,
   handleGoogleBusinessPlaceActionLinkCreate,
   handleGoogleBusinessPlaceActionLinkUpdate,
   handleGoogleBusinessPlaceActionLinkDelete,
@@ -2123,6 +2124,27 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "google_business_place_action_types_available",
+    description: "List the place_action_type values Google accepts for a Google Business Profile location. Depends on the location's categories and setup; check this first when google_business_place_action_link_create fails with 'Request contains an invalid argument'.",
+    annotations: {
+      title: "List Available Google Business Place Action Types",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: { type: "string", description: "Full Google resource path 'accounts/X/locations/Y'" },
+        language_code: { type: "string", description: "BCP 47 code for displayName, e.g. 'en'" },
+        page_size: { type: "number", description: "1-100 (default 100)" },
+        page_token: { type: "string", description: "From a previous response's nextPageToken" },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
     name: "google_business_place_action_link_create",
     description: "Add an action button to a Google Business Profile location. Which place_action_type values a location accepts varies by category. Google keys the link off (location, uri, placeActionType), so creating the same combination twice returns the existing link rather than a duplicate.",
     annotations: {
@@ -3194,6 +3216,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleGoogleBusinessFoodMenusUpdate(client, args as any);
         case "google_business_place_action_links_list":
           return await handleGoogleBusinessPlaceActionLinksList(client, args as any);
+        case "google_business_place_action_types_available":
+          return await handleGoogleBusinessPlaceActionTypesAvailable(client, args as any);
         case "google_business_place_action_link_create":
           return await handleGoogleBusinessPlaceActionLinkCreate(client, args as any);
         case "google_business_place_action_link_update":

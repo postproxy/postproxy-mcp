@@ -1514,6 +1514,16 @@ export class PostProxyClient {
     );
   }
 
+  async listGoogleBusinessAvailablePlaceActionTypes(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.googleBusinessPath(profileId, "available_place_action_types", query)
+    );
+  }
+
   async createGoogleBusinessPlaceActionLink(profileId: string, body: any): Promise<any> {
     return this.request<any>(
       "POST",

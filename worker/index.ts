@@ -1279,6 +1279,15 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     });
   }
 
+  private async handleGoogleBusinessPlaceActionTypesAvailable(args: any): Promise<string> {
+    return this.googleBusinessGet(args, "available_place_action_types", ["location_id"], {
+      location_id: args?.location_id,
+      language_code: args?.language_code,
+      page_size: args?.page_size,
+      page_token: args?.page_token,
+    });
+  }
+
   private async handleGoogleBusinessPlaceActionLinkCreate(args: any): Promise<string> {
     return this.googleBusinessWrite(args, "POST", "create_place_action_link", [
       "location_id",
@@ -1713,6 +1722,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleGoogleBusinessFoodMenusUpdate(args);
       case "google_business_place_action_links_list":
         return await this.handleGoogleBusinessPlaceActionLinksList(args);
+      case "google_business_place_action_types_available":
+        return await this.handleGoogleBusinessPlaceActionTypesAvailable(args);
       case "google_business_place_action_link_create":
         return await this.handleGoogleBusinessPlaceActionLinkCreate(args);
       case "google_business_place_action_link_update":
