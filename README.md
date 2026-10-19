@@ -143,6 +143,16 @@ List all profile groups accessible with your API key. Profile groups are organiz
 }
 ```
 
+#### `profile_groups_initialize_connection`
+
+Generate a connect URL for a new profile in a profile group. The user opens the URL to finish the OAuth flow.
+
+**Parameters**:
+- `profile_group_id` (string, required): Profile group ID
+- `platform` (string, required): Platform to connect (e.g. `instagram`, `linkedin`, `whatsapp`)
+- `onboarding` (string, optional): Instagram and WhatsApp only. **Instagram:** `instagram` (default) uses Instagram Login; `facebook` uses Facebook Login, for an Instagram professional account linked to a Facebook Page you manage. The profile is `platform: "instagram"` either way, and reconnecting with the other method updates the existing profile in place. **WhatsApp:** `api` or `business_app` (see [WhatsApp Business Management](#whatsapp-business-management)).
+- `identifier` + `app_password` (Bluesky) / `bot_token` (Telegram): credentials, local server only
+
 #### `profiles_list`
 
 List all available social media profiles for posting.

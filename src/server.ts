@@ -191,7 +191,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "profile_groups_initialize_connection",
-    description: "Generate a URL to connect a new social media profile to a profile group (initiates the OAuth/connect flow). For bluesky, pass identifier + app_password. For telegram, pass bot_token. For whatsapp, optionally pass onboarding ('api' or 'business_app'); when omitted the connect page asks the user where their number lives. The returned URL should be opened by the user to complete the connection.",
+    description: "Generate a URL to connect a new social media profile to a profile group (initiates the OAuth/connect flow). For bluesky, pass identifier + app_password. For telegram, pass bot_token. For whatsapp, optionally pass onboarding ('api' or 'business_app'); when omitted the connect page asks the user where their number lives. For instagram, optionally pass onboarding 'facebook' to connect through Facebook Login (an Instagram professional account linked to a Facebook Page the user manages) instead of the default Instagram Login. The returned URL should be opened by the user to complete the connection.",
     annotations: {
       title: "Initialize Profile Connection",
       readOnlyHint: false,
@@ -224,8 +224,8 @@ export const TOOL_DEFINITIONS = [
         },
         onboarding: {
           type: "string",
-          enum: ["api", "business_app"],
-          description: "WhatsApp only. 'business_app' keeps the number in the WhatsApp Business app on a phone (coexistence: QR scan, up to 6 months of chats imported, no group chats through the API); 'api' moves it to the Cloud API only (Twilio/360dialog/own Meta setup or a fresh number; not usable in the app afterwards). Omit to let the user choose on the connect page.",
+          enum: ["api", "business_app", "instagram", "facebook"],
+          description: "Instagram and WhatsApp only. Instagram: 'instagram' (default) connects with Instagram Login; 'facebook' connects with Facebook Login, for an Instagram professional account linked to a Facebook Page the user manages — either way the profile is platform 'instagram', and reconnecting with the other method updates the existing profile in place. WhatsApp: 'business_app' keeps the number in the WhatsApp Business app on a phone (coexistence: QR scan, up to 6 months of chats imported, no group chats through the API); 'api' moves it to the Cloud API only (Twilio/360dialog/own Meta setup or a fresh number; not usable in the app afterwards). Omit to let the user choose on the connect page.",
         },
       },
       required: ["profile_group_id", "platform"],
@@ -3072,7 +3072,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.18.1",
+      version: "1.18.2",
     },
     {
       capabilities: {

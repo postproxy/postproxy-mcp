@@ -62,6 +62,11 @@ test('google business tools all take profile_id and location_id', () => {
 // Annotation invariants matching the OpenAI plugin review rules:
 // a read-only tool cannot be destructive, and tools scoped to the user's own
 // account (every read here) are not "open world".
+test('initialize_connection offers instagram facebook-login onboarding', () => {
+  const connect = TOOL_DEFINITIONS.find((t) => t.name === 'profile_groups_initialize_connection');
+  assert.deepEqual(connect.inputSchema.properties.onboarding.enum, ['api', 'business_app', 'instagram', 'facebook']);
+});
+
 test('read-only tools are neither destructive nor open-world', () => {
   for (const tool of TOOL_DEFINITIONS.filter((t) => t.annotations.readOnlyHint === true)) {
     assert.equal(tool.annotations.destructiveHint, false, `${tool.name} read-only but destructive`);

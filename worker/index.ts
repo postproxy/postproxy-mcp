@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.1";
+const PACKAGE_VERSION = "1.18.2";
 
 // The remote server never asks the user for credentials or one-time codes in
 // chat (OpenAI plugin review treats that as collecting access secrets). Those
@@ -23,6 +23,11 @@ const REMOTE_HIDDEN_TOOLS = new Set([
   "whatsapp_number_verify",
 ]);
 const CREDENTIAL_CONNECT_PLATFORMS = new Set(["bluesky", "telegram"]);
+// Platforms whose connect flow takes an `onboarding` mode, and the modes each accepts.
+const ONBOARDING_MODES: Record<string, string[]> = {
+  whatsapp: ["api", "business_app"],
+  instagram: ["instagram", "facebook"],
+};
 
 const REMOTE_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((t) => !REMOTE_HIDDEN_TOOLS.has(t.name)).map((t) => {
   if (t.name !== "profile_groups_initialize_connection") return t;
@@ -30,7 +35,7 @@ const REMOTE_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((t) => !REMOTE_HIDDEN_TO
   return {
     ...t,
     description:
-      "Generate a URL to connect a new social media profile to a profile group (initiates the OAuth/connect flow). The returned URL should be opened by the user to complete the connection. For whatsapp, optionally pass onboarding ('api' or 'business_app'); when omitted the connect page asks the user where their number lives. Bluesky and Telegram need credentials, so they are connected in the Postproxy web app rather than here.",
+      "Generate a URL to connect a new social media profile to a profile group (initiates the OAuth/connect flow). The returned URL should be opened by the user to complete the connection. For whatsapp, optionally pass onboarding ('api' or 'business_app'); when omitted the connect page asks the user where their number lives. For instagram, optionally pass onboarding 'facebook' to connect through Facebook Login (an Instagram professional account linked to a Facebook Page the user manages) instead of the default Instagram Login. Bluesky and Telegram need credentials, so they are connected in the Postproxy web app rather than here.",
     inputSchema: { ...t.inputSchema, properties },
   };
 });
@@ -299,6 +304,13 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     const { profile_group_id, platform, onboarding } = args || {};
     if (!profile_group_id) throw new Error("profile_group_id is required");
     if (!platform) throw new Error("platform is required");
+    if (onboarding) {
+      const modes = ONBOARDING_MODES[platform];
+      if (!modes) throw new Error("onboarding is only supported for whatsapp and instagram");
+      if (!modes.includes(onboarding)) {
+        throw new Error(`onboarding for ${platform} must be ${modes.map((m) => `'${m}'`).join(" or ")}`);
+      }
+    }
     if (CREDENTIAL_CONNECT_PLATFORMS.has(platform)) {
       return JSON.stringify(
         {
@@ -314,7 +326,7 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     // MCP has no browser to redirect back to, so we never send redirect_url and
     // always force the API to return a URL the user opens manually.
     const body: Record<string, unknown> = { platform, force_no_redirect: true };
-    if (platform === "whatsapp" && onboarding) body.onboarding = onboarding;
+    if (onboarding) body.onboarding = onboarding;
 
     const response = await this.apiRequest<any>(
       "POST",

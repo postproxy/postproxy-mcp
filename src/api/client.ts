@@ -47,7 +47,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.1";
+const PACKAGE_VERSION = "1.18.2";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {

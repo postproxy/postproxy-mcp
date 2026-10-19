@@ -103,6 +103,21 @@ test('bluesky and telegram connections point to the web app without calling the 
   }
 });
 
+test('initialize_connection rejects onboarding modes the platform does not take', async () => {
+  for (const [platform, onboarding, expected] of [
+    ['instagram', 'api', /onboarding for instagram must be 'instagram' or 'facebook'/],
+    ['whatsapp', 'facebook', /onboarding for whatsapp must be 'api' or 'business_app'/],
+    ['linkedin', 'facebook', /only supported for whatsapp and instagram/],
+  ]) {
+    const res = await rpc(
+      'tools/call',
+      { name: 'profile_groups_initialize_connection', arguments: { profile_group_id: 'g', platform, onboarding } },
+      { Authorization: 'Bearer test-key' }
+    );
+    assert.match(JSON.stringify(await res.json()), expected);
+  }
+});
+
 test('malformed JSON still returns parse error, not 401', async () => {
   const res = await worker.fetch('https://mcp.postproxy.dev/mcp', {
     method: 'POST',

@@ -100,6 +100,12 @@ export async function handleProfileGroupsList(client: PostProxyClient) {
   }
 }
 
+// Platforms whose connect flow takes an `onboarding` mode, and the modes each accepts.
+const ONBOARDING_MODES: Record<string, string[]> = {
+  whatsapp: ["api", "business_app"],
+  instagram: ["instagram", "facebook"],
+};
+
 export async function handleProfileGroupsInitializeConnection(
   client: PostProxyClient,
   args: {
@@ -108,7 +114,7 @@ export async function handleProfileGroupsInitializeConnection(
     identifier?: string;
     app_password?: string;
     bot_token?: string;
-    onboarding?: "api" | "business_app";
+    onboarding?: "api" | "business_app" | "instagram" | "facebook";
   }
 ) {
   logToolCall("profile_groups.initialize_connection", args);
@@ -128,6 +134,21 @@ export async function handleProfileGroupsInitializeConnection(
   if (args.platform === "telegram" && !args.bot_token) {
     throw createError(ErrorCodes.VALIDATION_ERROR, "bot_token is required for telegram");
   }
+  if (args.onboarding) {
+    const modes = ONBOARDING_MODES[args.platform];
+    if (!modes) {
+      throw createError(
+        ErrorCodes.VALIDATION_ERROR,
+        "onboarding is only supported for whatsapp and instagram"
+      );
+    }
+    if (!modes.includes(args.onboarding)) {
+      throw createError(
+        ErrorCodes.VALIDATION_ERROR,
+        `onboarding for ${args.platform} must be ${modes.map((m) => `'${m}'`).join(" or ")}`
+      );
+    }
+  }
 
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -143,7 +164,7 @@ export async function handleProfileGroupsInitializeConnection(
   if (args.identifier) body.identifier = args.identifier;
   if (args.app_password) body.app_password = args.app_password;
   if (args.bot_token) body.bot_token = args.bot_token;
-  if (args.platform === "whatsapp" && args.onboarding) body.onboarding = args.onboarding;
+  if (args.onboarding) body.onboarding = args.onboarding;
 
   try {
     const result = await client.initializeProfileGroupConnection(
