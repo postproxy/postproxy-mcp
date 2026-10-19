@@ -139,9 +139,15 @@ export interface InstagramParams {
   collaborators?: string[]; // Array of usernames (up to 10 for posts, 3 for reels)
   first_comment?: string;
   cover_url?: string; // For reels
-  audio_name?: string; // For reels
+  audio_name?: string; // For reels; ignored when audio_id is set
+  audio_id?: string; // Reel soundtrack from instagram_available_audio (Facebook Login profiles only)
+  audio_volume?: number; // 1-100, volume of the attached audio (Facebook Login profiles only)
+  video_volume?: number; // 1-100, volume of the video's own sound when audio_id is set
+  strip_audio?: boolean; // Remove the video's own audio track (reels, video stories)
   trial_strategy?: "MANUAL" | "SS_PERFORMANCE"; // For reels
   thumb_offset?: string; // Thumbnail offset in milliseconds for reels
+  user_tags?: Array<{ username: string; x?: number; y?: number; media_index?: number }>;
+  made_with_ai?: boolean; // Disclose AI-generated content
 }
 
 /**

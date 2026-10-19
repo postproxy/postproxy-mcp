@@ -107,3 +107,22 @@ test('whatsapp tools all take profile_id; phone-scoped ones also phone_number_id
     }
   }
 });
+
+test('instagram_available_audio requires profile_id', () => {
+  const tool = TOOL_DEFINITIONS.find((t) => t.name === 'instagram_available_audio');
+  assert.ok(tool, 'instagram_available_audio must be defined');
+  assert.deepEqual(tool.inputSchema.required, ['profile_id']);
+});
+
+test('instagram reel audio params pass local validation', async () => {
+  const { PostPublishSchema } = await import(join(root, 'dist/utils/validation.js'));
+  const base = { content: 'x', profiles: ['instagram'] };
+  const reel = { format: 'reel', audio_id: '123', audio_volume: 80, video_volume: 30, strip_audio: true };
+  assert.ok(PostPublishSchema.safeParse({ ...base, platforms: { instagram: reel } }).success);
+  assert.ok(PostPublishSchema.safeParse({
+    ...base,
+    platforms: { instagram: { user_tags: [{ username: 'a', x: 0.5, y: 0.5 }], made_with_ai: true } },
+  }).success);
+  assert.equal(PostPublishSchema.safeParse({ ...base, platforms: { instagram: { audio_volume: 0 } } }).success, false);
+  assert.equal(PostPublishSchema.safeParse({ ...base, platforms: { instagram: { video_volume: 101 } } }).success, false);
+});

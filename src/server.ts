@@ -80,6 +80,7 @@ import {
   handleGoogleBusinessMediaCreate,
   handleGoogleBusinessMediaDelete,
 } from "./tools/google-business.js";
+import { handleInstagramAvailableAudio } from "./tools/instagram.js";
 import {
   handleWhatsappTemplatesList,
   handleWhatsappTemplateGet,
@@ -315,7 +316,7 @@ export const TOOL_DEFINITIONS = [
           properties: {
             instagram: {
               type: "object",
-              description: "Instagram: format (post|reel|story; story requires empty content), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
+              description: "Instagram: format (post|reel|story; story requires empty content), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string, ignored when audio_id is set), audio_id (reel soundtrack from instagram_available_audio; Facebook Login profiles only), audio_volume (integer 1-100, default 100, volume of the attached audio; Facebook Login only), video_volume (integer 1-100, default 100, volume of the video's own sound when audio_id is set; Facebook Login only), strip_audio (bool, reel/video story — removes the video's own audio track before upload; combine with audio_id to play only the music), made_with_ai (bool, disclose AI-generated content), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
               additionalProperties: true,
             },
             youtube: {
@@ -1818,6 +1819,29 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "instagram_available_audio",
+    description: "Search Meta's music and original-sound library for audio a reel can use as its soundtrack. Without search_query, returns trending audio. Items use Meta's field names: audio_id, audio_type, title, duration_in_ms, on_platform_audio_preview_link, download_url (temporary preview, expires in ~1.5 days); music items add display_artist and cover_artwork_thumbnail_uri, original sounds add ig_username and profile_picture_url. Pass the chosen audio_id to post_publish under platforms.instagram with format 'reel'. Only works for Instagram profiles connected through Facebook Login — Instagram Login profiles get 422 (reconnect with profile_groups_initialize_connection onboarding 'facebook'). Only audio authorized for third-party use is returned, so the catalog can differ from the Instagram app.",
+    annotations: {
+      title: "Search Instagram Reel Audio",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of an Instagram profile connected via Facebook Login" },
+        audio_type: {
+          type: "string",
+          enum: ["music", "original_sound"],
+          description: "music (default) or original_sound",
+        },
+        search_query: { type: "string", description: "Search term. Omit to get trending audio" },
+      },
+      required: ["profile_id"],
+    },
+  },
+  {
     name: "google_business_location_get",
     description: "Read a Google Business Profile location — name, description, website, phones, categories, address, hours, service area, service items, and metadata. This is the business listing itself, not posts published to it. Read this before any google_business_*_update: Google's updates are field-masked, so you patch back objects you fetched here.",
     annotations: {
@@ -3072,7 +3096,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.18.2",
+      version: "1.18.3",
     },
     {
       capabilities: {
@@ -3192,6 +3216,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleDmChatMarkRead(client, args as any);
         case "dm_comment_private_reply":
           return await handleDmCommentPrivateReply(client, args as any);
+        case "instagram_available_audio":
+          return await handleInstagramAvailableAudio(client, args as any);
         case "google_business_location_get":
           return await handleGoogleBusinessLocationGet(client, args as any);
         case "google_business_location_update":

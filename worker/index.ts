@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.2";
+const PACKAGE_VERSION = "1.18.3";
 
 // The remote server never asks the user for credentials or one-time codes in
 // chat (OpenAI plugin review treats that as collecting access secrets). Those
@@ -1213,6 +1213,19 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(response, null, 2);
   }
 
+  private async handleInstagramAvailableAudio(args: any): Promise<string> {
+    if (!args?.profile_id) throw new Error("profile_id is required");
+    const params = new URLSearchParams();
+    if (args.audio_type) params.append("audio_type", String(args.audio_type));
+    if (args.search_query) params.append("search_query", String(args.search_query));
+    const qs = params.toString();
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/profiles/${encodeURIComponent(args.profile_id)}/instagram/available_audio${qs ? `?${qs}` : ""}`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
   private async handleGoogleBusinessLocationGet(args: any): Promise<string> {
     return this.googleBusinessGet(args, "location", ["location_id"], {
       location_id: args?.location_id,
@@ -1710,6 +1723,8 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleDmChatMarkRead(args);
       case "dm_comment_private_reply":
         return await this.handleDmCommentPrivateReply(args);
+      case "instagram_available_audio":
+        return await this.handleInstagramAvailableAudio(args);
       case "google_business_location_get":
         return await this.handleGoogleBusinessLocationGet(args);
       case "google_business_location_update":

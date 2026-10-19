@@ -95,10 +95,25 @@ export const InstagramParamsSchema = z.object({
   first_comment: z.string().optional(),
   cover_url: CoverSourceSchema.optional(),
   audio_name: z.string().optional(),
+  audio_id: z.string().optional(),
+  audio_volume: z.number().int().min(1).max(100, {
+    message: "Instagram audio_volume must be an integer between 1 and 100",
+  }).optional(),
+  video_volume: z.number().int().min(1).max(100, {
+    message: "Instagram video_volume must be an integer between 1 and 100",
+  }).optional(),
+  strip_audio: z.boolean().optional(),
   trial_strategy: z.enum(["MANUAL", "SS_PERFORMANCE"], {
     errorMap: () => ({ message: "Instagram trial_strategy must be 'MANUAL' or 'SS_PERFORMANCE'" }),
   }).optional(),
   thumb_offset: z.string().optional(),
+  user_tags: z.array(z.object({
+    username: z.string().min(1),
+    x: z.number().optional(),
+    y: z.number().optional(),
+    media_index: z.number().int().nonnegative().optional(),
+  })).optional(),
+  made_with_ai: z.boolean().optional(),
 }).strict();
 
 // YouTube parameters validation

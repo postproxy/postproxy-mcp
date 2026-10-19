@@ -47,7 +47,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.2";
+const PACKAGE_VERSION = "1.18.3";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1511,6 +1511,23 @@ export class PostProxyClient {
     return this.request<any>(
       "GET",
       this.googleBusinessPath(profileId, "place_action_links", query)
+    );
+  }
+
+  async listInstagramAvailableAudio(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, value);
+      }
+    }
+    const qs = params.toString();
+    return this.request<any>(
+      "GET",
+      `/profiles/${encodeURIComponent(profileId)}/instagram/available_audio${qs ? `?${qs}` : ""}`
     );
   }
 

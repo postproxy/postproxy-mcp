@@ -1111,6 +1111,14 @@ Using platform names:
 Publish "Exciting news!" to linkedin and twitter
 ```
 
+### Instagram Reel Audio
+
+| Tool | Description |
+|------|-------------|
+| `instagram_available_audio` | Search Meta's music / original-sound library (trending when no `search_query`); pass the `audio_id` to a reel |
+
+Only works for Instagram profiles connected through Facebook Login (`profile_groups_initialize_connection` with `onboarding: "facebook"`); Instagram Login profiles return `422`.
+
 ### Publish with Platform Parameters
 
 You can use platform-specific parameters to customize posts for each platform. The `platforms` parameter accepts an object where keys are platform names and values contain platform-specific options.
@@ -1155,6 +1163,25 @@ Or with explicit parameters:
   }
 }
 ```
+
+**Instagram Reel with Library Music** (Facebook Login profiles; get `audio_id` from `instagram_available_audio`):
+```json
+{
+  "content": "Summer vibes ☀️",
+  "profiles": ["instagram"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "instagram": {
+      "format": "reel",
+      "audio_id": "1234567890123456",
+      "audio_volume": 80,
+      "strip_audio": true
+    }
+  }
+}
+```
+
+`audio_volume` / `video_volume` take 1–100 (default 100). `strip_audio` removes the video's own sound (reels and video stories) and works on any Instagram profile.
 
 **Instagram Story:**
 ```json
