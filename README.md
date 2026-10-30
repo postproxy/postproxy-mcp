@@ -731,7 +731,7 @@ Send an outbound message. Provide **exactly one** of `body` (text), `media` (a s
 - `body` (string, optional): Message text (required when nothing else is sent; on WhatsApp it may also accompany `media` as the caption)
 - `media` (string[], optional): Up to one attachment as a URL or local file path. Not supported on Bluesky. (The remote/Worker MCP accepts URLs only.) WhatsApp limits: image 5MB jpeg/png, video 16MB mp4/3gpp, audio 16MB, document 100MB.
 - `tag` (string, optional): `HUMAN_AGENT` to send outside the 24h window — extends it to 7 days from the participant's last inbound message (Facebook/Instagram only). Meta restricts it to a **human** replying to the participant's own inquiry; using it for marketing, offers, or automated re-engagement can get that Page / Instagram account's messaging capability suspended. Past 7 days Meta rejects the send and the message lands in `status: failed` with the platform error in `error_details`.
-- `reply_to_external_id` (string, optional): **Telegram & WhatsApp** — platform message id (Telegram `message_id`, WhatsApp `wamid`) to quote / thread under
+- `reply_to_external_id` (string, optional): **Telegram, WhatsApp & Instagram** — platform message id (Telegram `message_id`, WhatsApp `wamid`, Instagram `mid`) to quote / thread under
 - `reply_markup` (object, optional): **Telegram only** — inline/reply keyboard payload
 - `quick_replies` (object[], optional): **Facebook & Instagram only** — up to 13 tappable chips above the participant's composer. Each `{ title, payload }`.
 - `buttons` (object[], optional): **Facebook & Instagram only** — up to 3 buttons attached to the message. Each `{ type: "web_url", title, url }` or `{ type: "postback", title, payload }`.
@@ -879,6 +879,20 @@ Send a DM to the author of a comment, in reply to that comment (Meta "Private Re
 
 Interactive elements follow the same rules as `dm_message_send` — on Instagram, `quick_replies` and `buttons` are mutually exclusive. Media attachments are not available on private replies.
 
+#### Thread control (Facebook & Instagram)
+
+Meta lets several apps share a Page's or Instagram account's inbox (Postproxy, Meta's inbox, chatbots like ManyChat), but only one controls a conversation at a time. Messages still reach Postproxy while another app holds it, but sends are rejected until control comes back.
+
+| Tool | Purpose |
+|------|---------|
+| `dm_chat_thread_control_pass` | Hand the conversation to `target_app_id` (Page Inbox `263902037430900`, Instagram Inbox `1217981644879628`) |
+| `dm_chat_thread_control_take` | Take it back from whichever app holds it — needs Conversation Routing on the Page; Facebook and Facebook-Login Instagram only |
+| `dm_chat_thread_control_release` | Give up control; the conversation goes idle |
+| `dm_chat_thread_control_request` | Ask the owner app to pass it — only when the Page does **not** use Conversation Routing; Facebook and Facebook-Login Instagram only |
+| `dm_chat_thread_owner` | Ask Meta who controls the conversation now (`{ app_id, expires_at }`, both `null` when idle) |
+
+Each takes `chat_id` and an optional `metadata` note forwarded to the receiving app. The four control actions return the chat with `metadata.thread_control` refreshed.
+
 #### Platform Support
 
 | Action | Facebook | Instagram | Telegram | Bluesky | WhatsApp |
@@ -891,7 +905,7 @@ Interactive elements follow the same rules as `dm_message_send` — on Instagram
 | Mark read (receipt sent) | local only | local only | local only | local only | Yes |
 | Private reply to comment | Yes | Yes | No | No | No |
 | `tag` (24h window) | Yes | Yes | n/a | n/a | No — use `template` / `category: utility` |
-| `reply_to_external_id` | No | No | Yes | No | Yes |
+| `reply_to_external_id` | No | Yes | Yes | No | Yes |
 | `reply_markup` | No | No | Yes | No | No |
 | `quick_replies` / `buttons` / `card` | Yes | Yes (text-only) | No | No | No — use `interactive` |
 | `template` / `interactive` / `location` / `contacts` | No | No | No | No | Yes |
@@ -971,6 +985,7 @@ Payloads use Google's own shapes and camelCased keys in both directions, so a re
 | `google_business_media_list` | List profile photos and videos |
 | `google_business_media_create` | Add a photo or video |
 | `google_business_media_delete` | Remove a photo or video |
+| `google_business_search_keywords` | Monthly search keywords that surfaced the location in Search and Maps (up to 12 months per call, last 18 months available) |
 
 #### Typical flow
 
@@ -1018,7 +1033,7 @@ Google omits keys rather than returning empty values: a listing with no attribut
 
 #### Analytics
 
-Google Business location analytics come through the standard `profiles_stats` tool — pass the `location_id` as `placement_id`. Metrics are Search and Maps impressions (desktop and mobile), website clicks, call clicks, direction requests, conversations, bookings, food orders and food-menu clicks. Google Business has no follower count, and Google exposes no per-post analytics for local posts.
+Google Business location analytics come through the standard `profiles_stats` tool — pass the `location_id` as `placement_id`. Metrics are Search and Maps impressions (desktop and mobile), website clicks, call clicks, direction requests, conversations, bookings, food orders and food-menu clicks. Google Business has no follower count, and Google exposes no per-post analytics for local posts. For the search terms people used to find the location, use `google_business_search_keywords`.
 
 ### WhatsApp Business Management
 
@@ -1111,13 +1126,33 @@ Using platform names:
 Publish "Exciting news!" to linkedin and twitter
 ```
 
-### Instagram Reel Audio
+### Instagram Reel Audio and Collaboration Invites
 
 | Tool | Description |
 |------|-------------|
 | `instagram_available_audio` | Search Meta's music / original-sound library (trending when no `search_query`); pass the `audio_id` to a reel |
+| `instagram_collaboration_invites_list` | List incoming collab invites (paginate with `after`) |
+| `instagram_collaboration_invite_accept` / `instagram_collaboration_invite_decline` | Accept or decline an invite by `media_id` |
 
-Only works for Instagram profiles connected through Facebook Login (`profile_groups_initialize_connection` with `onboarding: "facebook"`); Instagram Login profiles return `422`.
+These only work for Instagram profiles connected through Facebook Login (`profile_groups_initialize_connection` with `onboarding: "facebook"`); Instagram Login profiles return `422`.
+
+### Pinterest Boards
+
+| Tool | Description |
+|------|-------------|
+| `pinterest_board_create` | Create a board (`name`, optional `description`, `privacy` `PUBLIC`/`PROTECTED`); returns the new placement, whose `id` is the `board_id` to publish to |
+| `pinterest_board_delete` | Delete a board by `board_id` — **also deletes every Pin on it; irreversible** |
+
+### YouTube Playlists
+
+| Tool | Description |
+|------|-------------|
+| `youtube_playlists_list` | List the channel's playlists (50 per page, `page_token`) |
+| `youtube_playlist_create` | Create a playlist (`title` ≤150 chars, `description`, `privacy_status`) |
+| `youtube_playlist_update` | Update `title`, `description`, `privacy_status`; omitted fields are kept |
+| `youtube_playlist_delete` | Delete a playlist (its videos stay on the channel) |
+
+Pass a playlist's `id` as `platforms.youtube.playlist_id` in `post_publish` to add the uploaded video to it. Create/update/delete cost 50 YouTube API quota units each.
 
 ### Publish with Platform Parameters
 
@@ -1414,12 +1449,17 @@ Use `profiles_placements` against your Telegram profile to list channel `chat_id
 - `audio_name`: String - audio track name for reels
 - `trial_strategy`: "MANUAL" | "SS_PERFORMANCE" - trial strategy for reels
 - `thumb_offset`: String - thumbnail offset in milliseconds for reels
+- `alt_text`: String or array (matching media order) - image alt text, max 1,000 chars
+- `share_to_feed`: Boolean - reels only; `false` publishes to the Reels tab only (default shares to the feed/grid)
+- `disable_comment`: Boolean - turn comments off right after publishing (posts, reels)
+- `location_id`: String - numeric ID of a Facebook Page with an address to tag as the location (posts, reels; not stories)
 - `user_tags`: Array of `{ username, x, y, media_index }` - tag public Instagram accounts on any format (post, reel, story). Images **require** `x` and `y` (floats `0.0`–`1.0` from the top-left corner); reels and video slides are tagged by username only (coordinates are dropped); stories accept coordinates but don't need them. `media_index` picks the carousel slide (0-based, default `0`). A leading `@` is stripped. Out-of-range coordinates, a `media_index` past the last media item, or an image tag missing `x`/`y` are rejected with a 422 naming the entry. Private accounts and accounts with tagging off are silently skipped by Instagram.
 
 **YouTube:**
 - `title`: String - video title
 - `privacy_status`: "public" | "unlisted" | "private"
 - `cover_url`: String - custom thumbnail URL
+- `playlist_id`: String - add the video to this playlist (from `youtube_playlists_list`)
 
 **TikTok:**
 - `privacy_status`: "PUBLIC_TO_EVERYONE" | "MUTUAL_FOLLOW_FRIENDS" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY"
@@ -1431,14 +1471,35 @@ Use `profiles_placements` against your Telegram profile to list channel `chat_id
 - `disable_stitch`: Boolean - disable stitches
 - `brand_content_toggle`: Boolean - mark as paid partnership (third-party)
 - `brand_organic_toggle`: Boolean - mark as paid partnership (own brand)
+- `upload_as_draft`: Boolean - send to the creator's TikTok inbox instead of publishing
+- `thumb_offset`: String - video cover frame in milliseconds
 
 **Facebook:**
 - `format`: "post" | "story"
 - `first_comment`: String - comment to add after posting
 - `page_id`: String - page ID for posting to company pages
+- `link`: String - URL shared as a link post with preview card (text-only)
+- `alt_text`: String or array - image alt text
+- `made_with_ai`: Boolean - AI disclosure (photo posts only)
+- `countries`: Array or comma-separated string - ISO country codes to restrict viewers to
 
 **LinkedIn:**
+- `format`: "post" | "poll"
 - `organization_id`: String - organization ID for company page posts
+- `reshare_urn`: String - reshare an existing LinkedIn post
+- `alt_text`: String or array - image alt text
+- `countries`: Array or comma-separated string - country targeting (organization posts only, up to 25)
+- `poll_question` / `poll_options` / `poll_duration_days`: poll format — question 1-140 chars, 2-4 options of ≤30 chars, duration 1/3/7/14 days
+- `document_title`: String - title shown above an attached document (defaults to the file name)
+- `first_comment`: String - comment posted right after publishing as the same author (max 1,250 chars; profiles connected on/after 2026-10-28)
+
+**Pinterest:**
+- `board_id`: String - board placement from `profiles_placements` (create one with `pinterest_board_create`)
+- `title`: String - pin title, max 100 chars
+- `destination_link`: String - URL the pin links to
+- `cover_url`: String - cover image for video pins
+- `thumb_offset`: Integer - video thumbnail offset in seconds
+- `alt_text`: String - image pin alt text
 
 **Telegram:**
 - `chat_id`: String, **required** — destination channel/chat ID (use `profiles_placements` to list)
@@ -1450,15 +1511,21 @@ Use `profiles_placements` against your Telegram profile to list channel `chat_id
 - The bot must be a member (preferably administrator with post permission) of the destination channel
 
 **Bluesky:**
-- No platform-specific parameters available
+- `alt_text`: String or array - image alt text
 - Character limit: 300 graphemes (emoji and combining sequences count as one)
 - Auto-detects `@handle.bsky.social` mentions, `#hashtags`, and URLs and converts them to clickable facets
 - Generates a link card preview from Open Graph meta when a URL is present and no media is attached
 - Media: images ≤1 MB (×4), video ≤100 MB (×1, 1–60s)
 - Supports threads via the standard `thread` array
 
-**Twitter/X & Threads:**
-- No platform-specific parameters available
+**Twitter/X:**
+- `format`: "post" | "poll"
+- `alt_text`: String or array - image alt text, max 1,000 chars
+- `poll_options` / `poll_duration_minutes`: poll format — 2-4 options of ≤25 chars, 5-10080 minutes
+
+**Threads:**
+- `alt_text`: String or array - image alt text
+- `topic_tag`: String - one topic tag without `#`, max 50 chars, no periods or ampersands
 
 For complete documentation, see the [Platform Parameters Reference](https://postproxy.dev/reference/platform-parameters/).
 

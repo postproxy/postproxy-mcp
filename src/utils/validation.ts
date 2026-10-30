@@ -82,7 +82,14 @@ export const CoverSourceSchema = z.string().refine(
 
 /**
  * Platform-specific validation schemas
+ *
+ * These type-check the parameters we know about but pass unknown keys through:
+ * the API is the source of truth and validates the full set, so a parameter it
+ * adds must not be rejected here before the MCP catches up.
  */
+
+const AltTextSchema = z.union([z.string(), z.array(z.string())]);
+const CountriesSchema = z.union([z.string(), z.array(z.string())]);
 
 // Instagram parameters validation
 export const InstagramParamsSchema = z.object({
@@ -114,7 +121,11 @@ export const InstagramParamsSchema = z.object({
     media_index: z.number().int().nonnegative().optional(),
   })).optional(),
   made_with_ai: z.boolean().optional(),
-}).strict();
+  alt_text: AltTextSchema.optional(),
+  disable_comment: z.boolean().optional(),
+  location_id: z.string().optional(),
+  share_to_feed: z.boolean().optional(),
+}).passthrough();
 
 // YouTube parameters validation
 export const YouTubeParamsSchema = z.object({
@@ -127,7 +138,8 @@ export const YouTubeParamsSchema = z.object({
   tags: z.array(z.string()).optional(),
   category_id: z.string().optional(),
   contains_synthetic_media: z.boolean().optional(),
-}).strict();
+  playlist_id: z.string().optional(),
+}).passthrough();
 
 // TikTok parameters validation
 export const TikTokParamsSchema = z.object({
@@ -152,7 +164,9 @@ export const TikTokParamsSchema = z.object({
   disable_stitch: z.boolean().optional(),
   brand_content_toggle: z.boolean().optional(),
   brand_organic_toggle: z.boolean().optional(),
-}).strict();
+  upload_as_draft: z.boolean().optional(),
+  thumb_offset: z.string().optional(),
+}).passthrough();
 
 // Facebook parameters validation
 export const FacebookParamsSchema = z.object({
@@ -162,24 +176,67 @@ export const FacebookParamsSchema = z.object({
   title: z.string().optional(),
   first_comment: z.string().optional(),
   page_id: z.string().optional(),
-}).strict();
+  link: z.string().optional(),
+  alt_text: AltTextSchema.optional(),
+  made_with_ai: z.boolean().optional(),
+  countries: CountriesSchema.optional(),
+}).passthrough();
 
 // LinkedIn parameters validation
 export const LinkedInParamsSchema = z.object({
+  format: z.enum(["post", "poll"], {
+    errorMap: () => ({ message: "LinkedIn format must be 'post' or 'poll'" }),
+  }).optional(),
   organization_id: z.string().optional(),
-}).strict();
+  reshare_urn: z.string().optional(),
+  alt_text: AltTextSchema.optional(),
+  countries: CountriesSchema.optional(),
+  poll_question: z.string().min(1).max(140, {
+    message: "LinkedIn poll_question must be 1-140 characters",
+  }).optional(),
+  poll_options: z.array(z.string().max(30)).min(2).max(4, {
+    message: "LinkedIn poll_options must have 2-4 choices of up to 30 characters",
+  }).optional(),
+  poll_duration_days: z.union([z.literal(1), z.literal(3), z.literal(7), z.literal(14)], {
+    errorMap: () => ({ message: "LinkedIn poll_duration_days must be 1, 3, 7 or 14" }),
+  }).optional(),
+  document_title: z.string().optional(),
+  first_comment: z.string().max(1250, {
+    message: "LinkedIn first_comment must be at most 1,250 characters",
+  }).optional(),
+}).passthrough();
 
 // Pinterest parameters validation
 export const PinterestParamsSchema = z.object({
   cover_url: CoverSourceSchema.optional(),
   board_id: z.string().optional(),
   title: z.string().optional(),
-  link: z.string().optional(),
-}).strict();
+  destination_link: z.string().optional(),
+  thumb_offset: z.number().int().nonnegative().optional(),
+  alt_text: z.string().optional(),
+}).passthrough();
 
-// Twitter/X and Threads don't have platform-specific parameters
-export const TwitterParamsSchema = z.object({}).strict();
-export const ThreadsParamsSchema = z.object({}).strict();
+// Twitter/X parameters validation
+export const TwitterParamsSchema = z.object({
+  format: z.enum(["post", "poll"], {
+    errorMap: () => ({ message: "X format must be 'post' or 'poll'" }),
+  }).optional(),
+  alt_text: AltTextSchema.optional(),
+  poll_options: z.array(z.string().max(25)).min(2).max(4, {
+    message: "X poll_options must have 2-4 choices of up to 25 characters",
+  }).optional(),
+  poll_duration_minutes: z.number().int().min(5).max(10080, {
+    message: "X poll_duration_minutes must be between 5 and 10080",
+  }).optional(),
+}).passthrough();
+
+// Threads parameters validation
+export const ThreadsParamsSchema = z.object({
+  alt_text: AltTextSchema.optional(),
+  topic_tag: z.string().max(50).refine((v) => !/[.&]/.test(v), {
+    message: "Threads topic_tag can't contain periods or ampersands",
+  }).optional(),
+}).passthrough();
 
 // Combined platform parameters schema
 export const PlatformParamsSchema = z.object({
@@ -191,7 +248,7 @@ export const PlatformParamsSchema = z.object({
   pinterest: PinterestParamsSchema.optional(),
   twitter: TwitterParamsSchema.optional(),
   threads: ThreadsParamsSchema.optional(),
-}).strict().optional();
+}).passthrough().optional();
 
 /**
  * Schema for thread child posts

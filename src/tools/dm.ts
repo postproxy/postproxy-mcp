@@ -2,7 +2,8 @@
  * Direct message tools: dm_chats_list, dm_chat_create, dm_chat_get,
  * dm_messages_list, dm_message_send, dm_message_get, dm_message_edit,
  * dm_message_react, dm_message_unreact, dm_chat_archive, dm_chat_unarchive,
- * dm_chat_mark_read, dm_comment_private_reply
+ * dm_chat_mark_read, dm_chat_thread_control_*, dm_chat_thread_owner,
+ * dm_comment_private_reply
  */
 
 import type { PostProxyClient } from "../api/client.js";
@@ -375,6 +376,57 @@ export async function handleDmChatMarkRead(
     throw createError(
       ErrorCodes.API_ERROR,
       `Failed to mark chat as read: ${(error as Error).message}`
+    );
+  }
+}
+
+export async function handleDmChatThreadControl(
+  client: PostProxyClient,
+  action: "pass" | "take" | "release" | "request",
+  args: { chat_id: string; target_app_id?: string; metadata?: string }
+) {
+  if (!args.chat_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "chat_id is required");
+  }
+  if (action === "pass" && !args.target_app_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "target_app_id is required");
+  }
+  if (args.target_app_id !== undefined && !/^\d+$/.test(args.target_app_id)) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "target_app_id must be a numeric Meta app ID");
+  }
+
+  const body: { target_app_id?: string; metadata?: string } = {};
+  if (action === "pass") body.target_app_id = args.target_app_id;
+  if (args.metadata !== undefined) body.metadata = args.metadata;
+
+  try {
+    const response = await client.chatThreadControl(args.chat_id, action, body);
+    return ok(response);
+  } catch (error) {
+    logError(error as Error, `dm.chat_thread_control_${action}`);
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to ${action} thread control: ${(error as Error).message}`
+    );
+  }
+}
+
+export async function handleDmChatThreadOwner(
+  client: PostProxyClient,
+  args: { chat_id: string }
+) {
+  if (!args.chat_id) {
+    throw createError(ErrorCodes.VALIDATION_ERROR, "chat_id is required");
+  }
+
+  try {
+    const response = await client.getChatThreadOwner(args.chat_id);
+    return ok(response);
+  } catch (error) {
+    logError(error as Error, "dm.chat_thread_owner");
+    throw createError(
+      ErrorCodes.API_ERROR,
+      `Failed to get thread owner: ${(error as Error).message}`
     );
   }
 }

@@ -148,6 +148,10 @@ export interface InstagramParams {
   thumb_offset?: string; // Thumbnail offset in milliseconds for reels
   user_tags?: Array<{ username: string; x?: number; y?: number; media_index?: number }>;
   made_with_ai?: boolean; // Disclose AI-generated content
+  alt_text?: string | string[]; // One string, or one per media item in order
+  disable_comment?: boolean; // Turn comments off right after publishing (posts, reels)
+  location_id?: string; // Numeric id of a Facebook Page with an address (posts, reels; not stories)
+  share_to_feed?: boolean; // Reels: false publishes to the Reels tab only
 }
 
 /**
@@ -161,6 +165,7 @@ export interface YouTubeParams {
   tags?: string[]; // Tags for the video
   category_id?: string; // YouTube video category ID (defaults to "22" / People & Blogs)
   contains_synthetic_media?: boolean; // Disclose if the video contains altered or synthetic (AI-generated) content
+  playlist_id?: string; // Add the video to this playlist (from youtube_playlists_list)
 }
 
 /**
@@ -177,6 +182,8 @@ export interface TikTokParams {
   disable_stitch?: boolean; // Disable stitches (video format)
   brand_content_toggle?: boolean; // Mark as paid partnership promoting a third-party business
   brand_organic_toggle?: boolean; // Mark as paid partnership promoting your own brand
+  upload_as_draft?: boolean; // Send to the creator's TikTok inbox instead of publishing
+  thumb_offset?: string; // Video cover frame in milliseconds
 }
 
 /**
@@ -187,13 +194,26 @@ export interface FacebookParams {
   title?: string; // Title of the reel
   first_comment?: string; // Comment to add after posting
   page_id?: string; // Page ID when you have multiple pages
+  link?: string; // Link post with preview card; text-only, can't combine with media
+  alt_text?: string | string[];
+  made_with_ai?: boolean; // Photo posts only
+  countries?: string | string[]; // ISO 3166-1 alpha-2 country restriction
 }
 
 /**
  * Platform-specific parameters for LinkedIn
  */
 export interface LinkedInParams {
+  format?: "post" | "poll";
   organization_id?: string; // Post on behalf of an organization/company page
+  reshare_urn?: string; // Reshare an existing LinkedIn post
+  alt_text?: string | string[];
+  countries?: string | string[]; // Org pages only; ISO 3166-1 alpha-2, up to 25
+  poll_question?: string; // poll format: 1-140 chars
+  poll_options?: string[]; // poll format: 2-4 choices, max 30 chars each
+  poll_duration_days?: 1 | 3 | 7 | 14; // poll format, default 7
+  document_title?: string; // Title shown above an attached document; defaults to the file name
+  first_comment?: string; // Posted right after publishing as the same author (max 1,250 chars)
 }
 
 /**
@@ -203,26 +223,35 @@ export interface PinterestParams {
   cover_url?: string; // Cover image for video pins (URL or local file path)
   board_id?: string;
   title?: string;
-  link?: string;
+  destination_link?: string; // URL the pin links to (max 2,048 chars)
+  thumb_offset?: number; // Video thumbnail offset in seconds
+  alt_text?: string; // Image pins; truncated to 500 chars
 }
 
 /**
  * Platform-specific parameters for Twitter/X
- * Note: Twitter/X does not have platform-specific parameters
  */
-export type TwitterParams = Record<string, never>;
+export interface TwitterParams {
+  format?: "post" | "poll";
+  alt_text?: string | string[];
+  poll_options?: string[]; // poll format: 2-4 choices, max 25 chars each
+  poll_duration_minutes?: number; // poll format: 5-10080
+}
 
 /**
  * Platform-specific parameters for Threads
- * Note: Threads does not have platform-specific parameters
  */
-export type ThreadsParams = Record<string, never>;
+export interface ThreadsParams {
+  alt_text?: string | string[];
+  topic_tag?: string; // One tag, no leading #, max 50 chars, no periods or ampersands
+}
 
 /**
  * Platform-specific parameters for Bluesky
- * Note: Bluesky does not have platform-specific parameters
  */
-export type BlueskyParams = Record<string, never>;
+export interface BlueskyParams {
+  alt_text?: string | string[];
+}
 
 /**
  * Platform-specific parameters for Telegram

@@ -47,7 +47,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.3";
+const PACKAGE_VERSION = "1.18.4";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1165,6 +1165,29 @@ export class PostProxyClient {
     return this.request<Chat>("POST", `/chats/${encodeURIComponent(chatId)}/mark_read`);
   }
 
+  /**
+   * Meta handover protocol (Facebook & Instagram): move control of a
+   * conversation between apps. action is pass | take | release | request.
+   */
+  async chatThreadControl(
+    chatId: string,
+    action: "pass" | "take" | "release" | "request",
+    body: { target_app_id?: string; metadata?: string }
+  ): Promise<Chat> {
+    return this.request<Chat>(
+      "POST",
+      `/chats/${encodeURIComponent(chatId)}/${action}_thread_control`,
+      body
+    );
+  }
+
+  /**
+   * Ask Meta which app currently controls the conversation (Facebook & Instagram).
+   */
+  async getChatThreadOwner(chatId: string): Promise<any> {
+    return this.request<any>("GET", `/chats/${encodeURIComponent(chatId)}/thread_owner`);
+  }
+
   // ─── Direct Messages: messages ─────────────────────────────────────
 
   /**
@@ -1403,6 +1426,16 @@ export class PostProxyClient {
     action: string,
     query: Record<string, string | undefined> = {}
   ): string {
+    return this.profilePath(profileId, "google_business", action, query);
+  }
+
+  /** `/profiles/:id/<network>/<action>?query` for the per-network profile endpoints. */
+  private profilePath(
+    profileId: string,
+    network: string,
+    action: string,
+    query: Record<string, string | undefined> = {}
+  ): string {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== "") {
@@ -1410,7 +1443,7 @@ export class PostProxyClient {
       }
     }
     const qs = params.toString();
-    return `/profiles/${encodeURIComponent(profileId)}/google_business/${action}${qs ? `?${qs}` : ""}`;
+    return `/profiles/${encodeURIComponent(profileId)}/${network}/${action}${qs ? `?${qs}` : ""}`;
   }
 
   async getGoogleBusinessLocation(
@@ -1518,16 +1551,82 @@ export class PostProxyClient {
     profileId: string,
     query: Record<string, string | undefined>
   ): Promise<any> {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined && value !== null && value !== "") {
-        params.append(key, value);
-      }
-    }
-    const qs = params.toString();
+    return this.request<any>("GET", this.profilePath(profileId, "instagram", "available_audio", query));
+  }
+
+  async listInstagramCollaborationInvites(profileId: string, after?: string): Promise<any> {
     return this.request<any>(
       "GET",
-      `/profiles/${encodeURIComponent(profileId)}/instagram/available_audio${qs ? `?${qs}` : ""}`
+      this.profilePath(profileId, "instagram", "collaboration_invites", { after })
+    );
+  }
+
+  async respondInstagramCollaborationInvite(
+    profileId: string,
+    mediaId: string,
+    accept: boolean
+  ): Promise<any> {
+    return this.request<any>(
+      "POST",
+      this.profilePath(
+        profileId,
+        "instagram",
+        accept ? "accept_collaboration_invite" : "decline_collaboration_invite"
+      ),
+      { media_id: mediaId }
+    );
+  }
+
+  async getGoogleBusinessSearchKeywords(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    return this.request<any>("GET", this.googleBusinessPath(profileId, "search_keywords", query));
+  }
+
+  // ─── Pinterest boards ─────────────────────────────────────────────
+
+  async createPinterestBoard(
+    profileId: string,
+    body: { name: string; description?: string; privacy?: string }
+  ): Promise<any> {
+    return this.request<any>("POST", this.profilePath(profileId, "pinterest", "create_board"), body);
+  }
+
+  async deletePinterestBoard(profileId: string, boardId: string): Promise<any> {
+    return this.request<any>(
+      "DELETE",
+      this.profilePath(profileId, "pinterest", "delete_board", { board_id: boardId })
+    );
+  }
+
+  // ─── YouTube playlists ────────────────────────────────────────────
+
+  async listYouTubePlaylists(profileId: string, pageToken?: string): Promise<any> {
+    return this.request<any>(
+      "GET",
+      this.profilePath(profileId, "youtube", "playlists", { page_token: pageToken })
+    );
+  }
+
+  async createYouTubePlaylist(
+    profileId: string,
+    body: { title: string; description?: string; privacy_status?: string }
+  ): Promise<any> {
+    return this.request<any>("POST", this.profilePath(profileId, "youtube", "create_playlist"), body);
+  }
+
+  async updateYouTubePlaylist(
+    profileId: string,
+    body: { playlist_id: string; title?: string; description?: string; privacy_status?: string }
+  ): Promise<any> {
+    return this.request<any>("PATCH", this.profilePath(profileId, "youtube", "update_playlist"), body);
+  }
+
+  async deleteYouTubePlaylist(profileId: string, playlistId: string): Promise<any> {
+    return this.request<any>(
+      "DELETE",
+      this.profilePath(profileId, "youtube", "delete_playlist", { playlist_id: playlistId })
     );
   }
 

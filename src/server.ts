@@ -57,6 +57,8 @@ import {
   handleDmChatArchive,
   handleDmChatUnarchive,
   handleDmChatMarkRead,
+  handleDmChatThreadControl,
+  handleDmChatThreadOwner,
   handleDmCommentPrivateReply,
 } from "./tools/dm.js";
 import {
@@ -79,8 +81,20 @@ import {
   handleGoogleBusinessMediaList,
   handleGoogleBusinessMediaCreate,
   handleGoogleBusinessMediaDelete,
+  handleGoogleBusinessSearchKeywords,
 } from "./tools/google-business.js";
-import { handleInstagramAvailableAudio } from "./tools/instagram.js";
+import {
+  handleInstagramAvailableAudio,
+  handleInstagramCollaborationInvitesList,
+  handleInstagramCollaborationInviteRespond,
+} from "./tools/instagram.js";
+import { handlePinterestBoardCreate, handlePinterestBoardDelete } from "./tools/pinterest.js";
+import {
+  handleYouTubePlaylistsList,
+  handleYouTubePlaylistCreate,
+  handleYouTubePlaylistUpdate,
+  handleYouTubePlaylistDelete,
+} from "./tools/youtube.js";
 import {
   handleWhatsappTemplatesList,
   handleWhatsappTemplateGet,
@@ -316,47 +330,47 @@ export const TOOL_DEFINITIONS = [
           properties: {
             instagram: {
               type: "object",
-              description: "Instagram: format (post|reel|story; story requires empty content), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string, ignored when audio_id is set), audio_id (reel soundtrack from instagram_available_audio; Facebook Login profiles only), audio_volume (integer 1-100, default 100, volume of the attached audio; Facebook Login only), video_volume (integer 1-100, default 100, volume of the video's own sound when audio_id is set; Facebook Login only), strip_audio (bool, reel/video story — removes the video's own audio track before upload; combine with audio_id to play only the music), made_with_ai (bool, disclose AI-generated content), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
+              description: "Instagram: format (post|reel|story; story requires empty content), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string, ignored when audio_id is set), audio_id (reel soundtrack from instagram_available_audio; Facebook Login profiles only), audio_volume (integer 1-100, default 100, volume of the attached audio; Facebook Login only), video_volume (integer 1-100, default 100, volume of the video's own sound when audio_id is set; Facebook Login only), strip_audio (bool, reel/video story — removes the video's own audio track before upload; combine with audio_id to play only the music), made_with_ai (bool, disclose AI-generated content), alt_text (string, or array matching media order; images incl. carousel, max 1,000 chars), disable_comment (bool, post/reel — turns comments off right after publishing), location_id (string, post/reel — numeric ID of a Facebook Page that has an address, NOT a place name; on carousels applies to the whole post; stories don't support it; a Page without an address fails the post), share_to_feed (bool, reel — false publishes to the Reels tab only; default shares to feed/grid), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
               additionalProperties: true,
             },
             youtube: {
               type: "object",
-              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (custom thumbnail — URL or local file path; local paths are uploaded as cover_file), made_for_kids (bool), tags (array of strings), category_id (string, defaults to '22' People & Blogs), contains_synthetic_media (bool, disclose AI-generated content)",
+              description: "YouTube: title (string), privacy_status (public|unlisted|private), cover_url (custom thumbnail — URL or local file path; local paths are uploaded as cover_file), made_for_kids (bool), tags (array of strings), category_id (string, defaults to '22' People & Blogs), contains_synthetic_media (bool, disclose AI-generated content), playlist_id (string, add the video to this channel playlist — from youtube_playlists_list or youtube_playlist_create; checked before upload, an unknown id fails the post)",
               additionalProperties: true,
             },
             tiktok: {
               type: "object",
-              description: "TikTok: format (video|image), privacy_status (PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY), photo_cover_index (integer, image only), auto_add_music (bool, image only), made_with_ai (bool, video only), disable_comment (bool), disable_duet (bool, video only), disable_stitch (bool, video only), brand_content_toggle (bool), brand_organic_toggle (bool)",
+              description: "TikTok: format (video|image), privacy_status (PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY), photo_cover_index (integer, image only), auto_add_music (bool, image only), made_with_ai (bool, video only), disable_comment (bool), disable_duet (bool, video only), disable_stitch (bool, video only), brand_content_toggle (bool), brand_organic_toggle (bool), upload_as_draft (bool, send to the creator's TikTok inbox instead of publishing), thumb_offset (string ms, video cover frame; cover_url wins if both set)",
               additionalProperties: true,
             },
             facebook: {
               type: "object",
-              description: "Facebook: format (post|story|reel; story requires empty content), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages)",
+              description: "Facebook: format (post|story|reel; story requires empty content), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages), link (string, URL shared as a link post with preview card — text-only, can't be combined with media), alt_text (string or array matching media order), made_with_ai (bool, photo posts only), countries (ISO 3166-1 alpha-2 codes, array or comma-separated string — restrict to viewers in these countries)",
               additionalProperties: true,
             },
             linkedin: {
               type: "object",
-              description: "LinkedIn: organization_id (string for company pages)",
+              description: "LinkedIn: format (post|poll), organization_id (string for company pages), reshare_urn (string, reshare an existing LinkedIn post; no own media), alt_text (string or array matching media order), countries (organization posts only — ISO 3166-1 alpha-2 codes, array or comma-separated, up to 25; audience must exceed 300 followers), poll_question (poll: 1-140 chars), poll_options (poll: 2-4 strings, max 30 chars each; polls can't carry media), poll_duration_days (poll: 1|3|7|14, default 7), document_title (string, title shown above an attached PDF/DOC/DOCX/PPT/PPTX; defaults to the file name), first_comment (string, max 1,250 chars, posted right after publishing as the same author; not available on profiles connected before 2026-10-28)",
               additionalProperties: true,
             },
             pinterest: {
               type: "object",
-              description: "Pinterest: cover_url (cover image for video pins — URL or local file path; local paths are uploaded as cover_file), board_id (string), title (string), link (string)",
+              description: "Pinterest: cover_url (cover image for video pins — URL or local file path; local paths are uploaded as cover_file), board_id (string — a board placement from profiles_placements; create one with pinterest_board_create), title (string, max 100 chars), destination_link (string, URL the pin links to, max 2,048 chars), thumb_offset (integer seconds, video pins), alt_text (string, image pins, truncated to 500 chars)",
               additionalProperties: true,
             },
             twitter: {
               type: "object",
-              description: "Twitter/X: No platform-specific parameters available. Supports threads.",
+              description: "Twitter/X: format (post|poll), alt_text (string or array matching media order, max 1,000 chars), poll_options (poll: 2-4 strings, max 25 chars each), poll_duration_minutes (poll: integer 5-10080). Supports threads.",
               additionalProperties: true,
             },
             threads: {
               type: "object",
-              description: "Threads: No platform-specific parameters available. Supports threads.",
+              description: "Threads: alt_text (string or array matching media order), topic_tag (string, one tag without the leading #, max 50 chars, no periods or ampersands). Supports threads.",
               additionalProperties: true,
             },
             bluesky: {
               type: "object",
-              description: "Bluesky: No platform-specific parameters available. Supports threads. Auto-converts @handles, #tags, and URLs into clickable facets; link cards are generated from URLs when no media is attached.",
+              description: "Bluesky: alt_text (string or array matching media order). Supports threads. Auto-converts @handles, #tags, and URLs into clickable facets; link cards are generated from URLs when no media is attached.",
               additionalProperties: true,
             },
             telegram: {
@@ -874,7 +888,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "comments_list",
-    description: "List comments on a published post. Returns paginated top-level comments with nested replies. Optionally filter by when PostProxy received the comment with from/to. Not all platforms support comments.",
+    description: "List comments on a published post. Returns paginated top-level comments with nested replies. Optionally filter by when PostProxy received the comment with from/to. Not all platforms support comments. LinkedIn comments cover organization page posts only (posts published with organization_id or imported from a page); personal-profile posts have none, and LinkedIn profiles connected before 2026-10-28 return 405 until reconnected.",
     annotations: {
       title: "List Comments",
       readOnlyHint: true,
@@ -1396,7 +1410,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "dm_message_send",
-    description: "Send an outbound direct message. Provide EXACTLY ONE of body (text), media (a single attachment), or — on WhatsApp — template, interactive, location or contacts. The message is queued and delivered asynchronously (returns status: pending). Outside Meta's 24h messaging window, a human agent replying to the participant's own inquiry can pass tag: HUMAN_AGENT (Facebook/Instagram only) — never for promotional or automated content. On WhatsApp the window is re-opened only by sending an approved template (or a text with category: utility); free-form sends outside it return 422. reply_markup is Telegram-only; reply_to_external_id works on Telegram and WhatsApp; quick_replies, buttons and card are the Facebook/Instagram interactive primitives and are rejected elsewhere — WhatsApp uses interactive (Meta-shaped) instead.",
+    description: "Send an outbound direct message. Provide EXACTLY ONE of body (text), media (a single attachment), or — on WhatsApp — template, interactive, location or contacts. The message is queued and delivered asynchronously (returns status: pending). Outside Meta's 24h messaging window, a human agent replying to the participant's own inquiry can pass tag: HUMAN_AGENT (Facebook/Instagram only) — never for promotional or automated content. On WhatsApp the window is re-opened only by sending an approved template (or a text with category: utility); free-form sends outside it return 422. reply_markup is Telegram-only; reply_to_external_id works on Telegram, WhatsApp and Instagram; quick_replies, buttons and card are the Facebook/Instagram interactive primitives and are rejected elsewhere — WhatsApp uses interactive (Meta-shaped) instead.",
     annotations: {
       title: "Send Message",
       readOnlyHint: false,
@@ -1427,7 +1441,7 @@ export const TOOL_DEFINITIONS = [
         },
         reply_to_external_id: {
           type: "string",
-          description: "Telegram and WhatsApp. Platform message id (Telegram message_id or WhatsApp wamid) of the message to quote / thread under.",
+          description: "Telegram, WhatsApp and Instagram. Platform message id — the message's external_id (Telegram message_id, WhatsApp wamid, Instagram mid) — of the message to quote / thread under. On Instagram the target can be inbound or outbound; if Instagram rejects it (deleted, too old, not in this chat) the send fails rather than going out without the quote. Rejected on Facebook.",
         },
         reply_markup: {
           type: "object",
@@ -1733,6 +1747,131 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "dm_chat_thread_control_pass",
+    description: "Facebook & Instagram only. Hand a conversation to another Meta app (Meta's handover protocol) \u2014 e.g. to a human in Meta's inbox: Page Inbox app 263902037430900, Instagram Inbox app 1217981644879628. Only works while Postproxy controls the conversation or it is idle. While another app controls a conversation, its messages still show up in the chat but dm_message_send is rejected until control comes back. Returns the chat; metadata.thread_control holds owner_app_id / expires_at.",
+    annotations: {
+      title: "Pass Thread Control",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id of a Facebook or Instagram chat",
+        },
+        target_app_id: {
+          type: "string",
+          description: "Numeric Meta app ID that receives the conversation (Page Inbox 263902037430900, Instagram Inbox 1217981644879628)",
+        },
+        metadata: {
+          type: "string",
+          description: "Optional free-form note forwarded to the receiving app in its handover webhook",
+        },
+      },
+      required: ["chat_id", "target_app_id"],
+    },
+  },
+  {
+    name: "dm_chat_thread_control_take",
+    description: "Facebook, and Instagram connected via Facebook Login. Take a conversation back from whichever app holds it. Only works when the Page has Conversation Routing enabled and Postproxy is allowed to take control in its settings; otherwise Meta answers '(#27) Take thread control is not supported when Conversation Routing is not enabled' \u2014 use dm_chat_thread_control_request then. Returns the chat.",
+    annotations: {
+      title: "Take Thread Control",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id of a Facebook or Instagram chat",
+        },
+        metadata: {
+          type: "string",
+          description: "Optional free-form note forwarded to the receiving app in its handover webhook",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_chat_thread_control_release",
+    description: "Facebook & Instagram only. Give up control of a conversation: it goes idle and the Page's default app answers the next message. Only the current owner can release. Returns the chat.",
+    annotations: {
+      title: "Release Thread Control",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id of a Facebook or Instagram chat",
+        },
+        metadata: {
+          type: "string",
+          description: "Optional free-form note forwarded to the receiving app in its handover webhook",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_chat_thread_control_request",
+    description: "Facebook, and Instagram connected via Facebook Login. Ask the app that currently controls the conversation to pass it to Postproxy. Nothing changes until that app does (check with dm_chat_thread_owner). Only works when the Page does NOT use Conversation Routing \u2014 the counterpart of dm_chat_thread_control_take. Returns the chat.",
+    annotations: {
+      title: "Request Thread Control",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id of a Facebook or Instagram chat",
+        },
+        metadata: {
+          type: "string",
+          description: "Optional free-form note forwarded to the receiving app in its handover webhook",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
+    name: "dm_chat_thread_owner",
+    description: "Facebook & Instagram only. Ask Meta which app controls a conversation right now, and refresh the chat's metadata.thread_control. Returns { app_id, expires_at }; both null when the conversation is idle. Page Inbox is app 263902037430900, Instagram Inbox 1217981644879628.",
+    annotations: {
+      title: "Get Thread Owner",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: {
+          type: "string",
+          description: "Chat hashid OR external_conversation_id of a Facebook or Instagram chat",
+        },
+      },
+      required: ["chat_id"],
+    },
+  },
+  {
     name: "dm_comment_private_reply",
     description: "Send a DM to the author of a comment, in reply to that comment (Meta 'Private Replies'). Bypasses the 24h window (comments up to 7 days old) and creates/reuses a chat automatically. One private reply per comment, ever. Instagram and Facebook (Page comments) only. Supports the same quick_replies / buttons / card interactive elements as dm_message_send; media attachments are not available on private replies.",
     annotations: {
@@ -1839,6 +1978,63 @@ export const TOOL_DEFINITIONS = [
         search_query: { type: "string", description: "Search term. Omit to get trending audio" },
       },
       required: ["profile_id"],
+    },
+  },
+  {
+    name: "instagram_collaboration_invites_list",
+    description: "List incoming Instagram collaboration invites: posts from other accounts that invited this profile as a collaborator. Each invite has media_id, media_owner_username, caption and media_url (omitted for videos with copyrighted or licensed audio). Paginate with after = next_cursor (null on the last page). Accept or decline with instagram_collaboration_invite_accept / _decline. To send invites, pass collaborators to post_publish. Only works for Instagram profiles connected through Facebook Login — Instagram Login profiles get 422.",
+    annotations: {
+      title: "List Instagram Collaboration Invites",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of an Instagram profile connected via Facebook Login" },
+        after: { type: "string", description: "Cursor from a previous response's next_cursor" },
+      },
+      required: ["profile_id"],
+    },
+  },
+  {
+    name: "instagram_collaboration_invite_accept",
+    description: "Accept an incoming Instagram collaboration invite, making this profile a collaborator on the post. Returns { accepted: true, media_id }. Facebook Login profiles only.",
+    annotations: {
+      title: "Accept Instagram Collaboration Invite",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of an Instagram profile connected via Facebook Login" },
+        media_id: { type: "string", description: "media_id from instagram_collaboration_invites_list" },
+      },
+      required: ["profile_id", "media_id"],
+    },
+  },
+  {
+    name: "instagram_collaboration_invite_decline",
+    description: "Decline an incoming Instagram collaboration invite. Returns { declined: true, media_id }. Facebook Login profiles only.",
+    annotations: {
+      title: "Decline Instagram Collaboration Invite",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of an Instagram profile connected via Facebook Login" },
+        media_id: { type: "string", description: "media_id from instagram_collaboration_invites_list" },
+      },
+      required: ["profile_id", "media_id"],
     },
   },
   {
@@ -2317,6 +2513,163 @@ export const TOOL_DEFINITIONS = [
         },
       },
       required: ["profile_id", "location_id", "media_name"],
+    },
+  },
+  {
+    name: "google_business_search_keywords",
+    description: "The searches that showed a Google Business Profile location in Google Search and Maps, month by month. Returns { months: [{ month, keywords: [{ keyword, impressions, impressions_threshold }] }] }, keywords sorted by impressions, highest first. For low-volume keywords Google gives no exact count: impressions is null and impressions_threshold holds the upper bound. Range is at most 12 months; Google keeps keywords for the last 18 months only. A month with no data has an empty keywords array.",
+    annotations: {
+      title: "Get Google Business Search Keywords",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a google_business profile" },
+        location_id: {
+          type: "string",
+          description: "Full Google resource path 'accounts/X/locations/Y'. Get it from profiles_placements.",
+        },
+        from_month: { type: "string", description: "YYYY-MM. Default: two months before to_month" },
+        to_month: { type: "string", description: "YYYY-MM. Default: the last complete month" },
+      },
+      required: ["profile_id", "location_id"],
+    },
+  },
+  {
+    name: "pinterest_board_create",
+    description: "Create a board on a connected Pinterest account. Boards are the profile's placements: the new board appears in profiles_placements right away, and the returned id is the board_id post_publish takes under platforms.pinterest. Returns the placement { id, name, avatar_url, metadata }. Board names must be unique on the account (a duplicate returns 422).",
+    annotations: {
+      title: "Create Pinterest Board",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a pinterest profile" },
+        name: { type: "string", description: "Board name. Must be unique among the account's boards" },
+        description: { type: "string", description: "Board description" },
+        privacy: {
+          type: "string",
+          enum: ["PUBLIC", "PROTECTED"],
+          description: "Board visibility. Defaults to PUBLIC",
+        },
+      },
+      required: ["profile_id", "name"],
+    },
+  },
+  {
+    name: "pinterest_board_delete",
+    description: "Delete a Pinterest board. This ALSO DELETES EVERY PIN ON THE BOARD on Pinterest and cannot be undone — confirm with the user first. The board is removed from the profile's placements. Returns { deleted: true, board_id }.",
+    annotations: {
+      title: "Delete Pinterest Board",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a pinterest profile" },
+        board_id: { type: "string", description: "Placement ID of the board, from profiles_placements" },
+      },
+      required: ["profile_id", "board_id"],
+    },
+  },
+  {
+    name: "youtube_playlists_list",
+    description: "List the playlists on a connected YouTube channel, up to 50 per page. Each playlist has id, title, description, privacy_status (public|unlisted|private), item_count, thumbnail_url and published_at. A playlist's id is the playlist_id post_publish takes under platforms.youtube to add the uploaded video to it. Paginate with page_token = next_page_token (null on the last page).",
+    annotations: {
+      title: "List YouTube Playlists",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a youtube profile" },
+        page_token: { type: "string", description: "next_page_token from the previous page" },
+      },
+      required: ["profile_id"],
+    },
+  },
+  {
+    name: "youtube_playlist_create",
+    description: "Create a playlist on a connected YouTube channel. Returns the new playlist. Costs 50 units of the channel's YouTube Data API quota.",
+    annotations: {
+      title: "Create YouTube Playlist",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a youtube profile" },
+        title: { type: "string", description: "Playlist title (max 150 characters)" },
+        description: { type: "string", description: "Playlist description" },
+        privacy_status: {
+          type: "string",
+          enum: ["public", "unlisted", "private"],
+          description: "Defaults to public",
+        },
+      },
+      required: ["profile_id", "title"],
+    },
+  },
+  {
+    name: "youtube_playlist_update",
+    description: "Update a playlist on a connected YouTube channel. Fields you leave out keep their current value. Returns the updated playlist. Costs 50 quota units.",
+    annotations: {
+      title: "Update YouTube Playlist",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a youtube profile" },
+        playlist_id: { type: "string", description: "Playlist ID from youtube_playlists_list" },
+        title: { type: "string", description: "New title (max 150 characters)" },
+        description: { type: "string", description: "New description. Pass an empty string to clear it" },
+        privacy_status: {
+          type: "string",
+          enum: ["public", "unlisted", "private"],
+          description: "New privacy status",
+        },
+      },
+      required: ["profile_id", "playlist_id"],
+    },
+  },
+  {
+    name: "youtube_playlist_delete",
+    description: "Delete a playlist from a connected YouTube channel. The videos in it are NOT deleted. Cannot be undone. Returns { deleted: true, playlist_id }. Costs 50 quota units.",
+    annotations: {
+      title: "Delete YouTube Playlist",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a youtube profile" },
+        playlist_id: { type: "string", description: "Playlist ID from youtube_playlists_list" },
+      },
+      required: ["profile_id", "playlist_id"],
     },
   },
   {
@@ -3096,7 +3449,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.18.3",
+      version: "1.18.4",
     },
     {
       capabilities: {
@@ -3216,6 +3569,34 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleDmChatMarkRead(client, args as any);
         case "dm_comment_private_reply":
           return await handleDmCommentPrivateReply(client, args as any);
+        case "dm_chat_thread_control_pass":
+          return await handleDmChatThreadControl(client, "pass", args as any);
+        case "dm_chat_thread_control_take":
+          return await handleDmChatThreadControl(client, "take", args as any);
+        case "dm_chat_thread_control_release":
+          return await handleDmChatThreadControl(client, "release", args as any);
+        case "dm_chat_thread_control_request":
+          return await handleDmChatThreadControl(client, "request", args as any);
+        case "dm_chat_thread_owner":
+          return await handleDmChatThreadOwner(client, args as any);
+        case "instagram_collaboration_invites_list":
+          return await handleInstagramCollaborationInvitesList(client, args as any);
+        case "instagram_collaboration_invite_accept":
+          return await handleInstagramCollaborationInviteRespond(client, args as any, true);
+        case "instagram_collaboration_invite_decline":
+          return await handleInstagramCollaborationInviteRespond(client, args as any, false);
+        case "pinterest_board_create":
+          return await handlePinterestBoardCreate(client, args as any);
+        case "pinterest_board_delete":
+          return await handlePinterestBoardDelete(client, args as any);
+        case "youtube_playlists_list":
+          return await handleYouTubePlaylistsList(client, args as any);
+        case "youtube_playlist_create":
+          return await handleYouTubePlaylistCreate(client, args as any);
+        case "youtube_playlist_update":
+          return await handleYouTubePlaylistUpdate(client, args as any);
+        case "youtube_playlist_delete":
+          return await handleYouTubePlaylistDelete(client, args as any);
         case "instagram_available_audio":
           return await handleInstagramAvailableAudio(client, args as any);
         case "google_business_location_get":
@@ -3256,6 +3637,8 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleGoogleBusinessMediaCreate(client, args as any);
         case "google_business_media_delete":
           return await handleGoogleBusinessMediaDelete(client, args as any);
+        case "google_business_search_keywords":
+          return await handleGoogleBusinessSearchKeywords(client, args as any);
         case "whatsapp_templates_list":
           return await handleWhatsappTemplatesList(client, args as any);
         case "whatsapp_template_get":

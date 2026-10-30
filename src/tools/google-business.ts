@@ -407,3 +407,29 @@ export async function handleGoogleBusinessMediaDelete(
     client.deleteGoogleBusinessMedia(args.profile_id, args.location_id, args.media_name)
   );
 }
+
+// === PERFORMANCE ===
+
+export async function handleGoogleBusinessSearchKeywords(
+  client: PostProxyClient,
+  args: { profile_id: string; location_id: string; from_month?: string; to_month?: string }
+) {
+  logToolCall("google_business_search_keywords", args);
+  requireArgs(args, ["profile_id", "location_id"]);
+  requireApiKey();
+
+  for (const key of ["from_month", "to_month"] as const) {
+    const value = args[key];
+    if (value !== undefined && value !== "" && !/^\d{4}-\d{2}$/.test(value)) {
+      throw createError(ErrorCodes.VALIDATION_ERROR, `${key} must be YYYY-MM`);
+    }
+  }
+
+  return run("google_business_search_keywords", () =>
+    client.getGoogleBusinessSearchKeywords(args.profile_id, {
+      location_id: args.location_id,
+      from_month: args.from_month,
+      to_month: args.to_month,
+    })
+  );
+}

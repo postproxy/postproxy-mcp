@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.3";
+const PACKAGE_VERSION = "1.18.4";
 
 // The remote server never asks the user for credentials or one-time codes in
 // chat (OpenAI plugin review treats that as collecting access secrets). Those
@@ -1126,6 +1126,42 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return JSON.stringify(response, null, 2);
   }
 
+  private async handleDmChatThreadControl(
+    args: any,
+    action: "pass" | "take" | "release" | "request"
+  ): Promise<string> {
+    this.getApiKey();
+    const { chat_id, target_app_id, metadata } = args ?? {};
+    if (!chat_id) throw new Error("chat_id is required");
+    if (action === "pass" && !target_app_id) throw new Error("target_app_id is required");
+    if (target_app_id !== undefined && !/^\d+$/.test(String(target_app_id))) {
+      throw new Error("target_app_id must be a numeric Meta app ID");
+    }
+
+    const body: Record<string, unknown> = {};
+    if (action === "pass") body.target_app_id = String(target_app_id);
+    if (metadata !== undefined) body.metadata = metadata;
+
+    const response = await this.apiRequest<any>(
+      "POST",
+      `/chats/${encodeURIComponent(chat_id)}/${action}_thread_control`,
+      body
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
+  private async handleDmChatThreadOwner(args: any): Promise<string> {
+    this.getApiKey();
+    const { chat_id } = args ?? {};
+    if (!chat_id) throw new Error("chat_id is required");
+
+    const response = await this.apiRequest<any>(
+      "GET",
+      `/chats/${encodeURIComponent(chat_id)}/thread_owner`
+    );
+    return JSON.stringify(response, null, 2);
+  }
+
   private async handleDmCommentPrivateReply(args: any): Promise<string> {
     this.getApiKey();
     const { post_id, comment_id, profile_id, text } = args;
@@ -1163,6 +1199,16 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     action: string,
     query: Record<string, unknown> = {}
   ): string {
+    return this.profilePath(profileId, "google_business", action, query);
+  }
+
+  /** `/profiles/:id/<network>/<action>?query` for the per-network profile endpoints. */
+  private profilePath(
+    profileId: string,
+    network: string,
+    action: string,
+    query: Record<string, unknown> = {}
+  ): string {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null && value !== "") {
@@ -1170,7 +1216,33 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
       }
     }
     const qs = params.toString();
-    return `/profiles/${encodeURIComponent(profileId)}/google_business/${action}${qs ? `?${qs}` : ""}`;
+    return `/profiles/${encodeURIComponent(profileId)}/${network}/${action}${qs ? `?${qs}` : ""}`;
+  }
+
+  private requireArgs(args: any, keys: string[]): void {
+    for (const key of keys) {
+      const value = args?.[key];
+      if (value === undefined || value === null || value === "") {
+        throw new Error(`${key} is required`);
+      }
+    }
+  }
+
+  private async profileApi(
+    args: any,
+    method: string,
+    network: string,
+    action: string,
+    required: string[],
+    { query = {}, body }: { query?: Record<string, unknown>; body?: any } = {}
+  ): Promise<string> {
+    this.requireArgs(args, ["profile_id", ...required]);
+    const response = await this.apiRequest<any>(
+      method,
+      this.profilePath(args.profile_id, network, action, query),
+      body
+    );
+    return JSON.stringify(response, null, 2);
   }
 
   private requireGoogleBusinessArgs(args: any, keys: string[]): void {
@@ -1214,16 +1286,73 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
   }
 
   private async handleInstagramAvailableAudio(args: any): Promise<string> {
-    if (!args?.profile_id) throw new Error("profile_id is required");
-    const params = new URLSearchParams();
-    if (args.audio_type) params.append("audio_type", String(args.audio_type));
-    if (args.search_query) params.append("search_query", String(args.search_query));
-    const qs = params.toString();
-    const response = await this.apiRequest<any>(
-      "GET",
-      `/profiles/${encodeURIComponent(args.profile_id)}/instagram/available_audio${qs ? `?${qs}` : ""}`
-    );
-    return JSON.stringify(response, null, 2);
+    return this.profileApi(args, "GET", "instagram", "available_audio", [], {
+      query: { audio_type: args?.audio_type, search_query: args?.search_query },
+    });
+  }
+
+  private async handleInstagramCollaborationInvitesList(args: any): Promise<string> {
+    return this.profileApi(args, "GET", "instagram", "collaboration_invites", [], {
+      query: { after: args?.after },
+    });
+  }
+
+  private async handleInstagramCollaborationInviteRespond(args: any, accept: boolean): Promise<string> {
+    const action = accept ? "accept_collaboration_invite" : "decline_collaboration_invite";
+    return this.profileApi(args, "POST", "instagram", action, ["media_id"], {
+      body: { media_id: args?.media_id },
+    });
+  }
+
+  // ─── Pinterest boards ──────────────────────────────────────────────
+
+  private async handlePinterestBoardCreate(args: any): Promise<string> {
+    if (args?.privacy !== undefined && !["PUBLIC", "PROTECTED"].includes(args.privacy)) {
+      throw new Error("privacy must be PUBLIC or PROTECTED");
+    }
+    const { profile_id, ...body } = args ?? {};
+    return this.profileApi(args, "POST", "pinterest", "create_board", ["name"], { body });
+  }
+
+  private async handlePinterestBoardDelete(args: any): Promise<string> {
+    return this.profileApi(args, "DELETE", "pinterest", "delete_board", ["board_id"], {
+      query: { board_id: args?.board_id },
+    });
+  }
+
+  // ─── YouTube playlists ─────────────────────────────────────────────
+
+  private checkYouTubePrivacy(privacy: unknown): void {
+    if (privacy !== undefined && !["public", "unlisted", "private"].includes(privacy as string)) {
+      throw new Error("privacy_status must be one of public, unlisted, private");
+    }
+  }
+
+  private async handleYouTubePlaylistsList(args: any): Promise<string> {
+    return this.profileApi(args, "GET", "youtube", "playlists", [], {
+      query: { page_token: args?.page_token },
+    });
+  }
+
+  private async handleYouTubePlaylistCreate(args: any): Promise<string> {
+    if (typeof args?.title === "string" && args.title.length > 150) {
+      throw new Error("title must be at most 150 characters");
+    }
+    this.checkYouTubePrivacy(args?.privacy_status);
+    const { profile_id, ...body } = args ?? {};
+    return this.profileApi(args, "POST", "youtube", "create_playlist", ["title"], { body });
+  }
+
+  private async handleYouTubePlaylistUpdate(args: any): Promise<string> {
+    this.checkYouTubePrivacy(args?.privacy_status);
+    const { profile_id, ...body } = args ?? {};
+    return this.profileApi(args, "PATCH", "youtube", "update_playlist", ["playlist_id"], { body });
+  }
+
+  private async handleYouTubePlaylistDelete(args: any): Promise<string> {
+    return this.profileApi(args, "DELETE", "youtube", "delete_playlist", ["playlist_id"], {
+      query: { playlist_id: args?.playlist_id },
+    });
   }
 
   private async handleGoogleBusinessLocationGet(args: any): Promise<string> {
@@ -1352,6 +1481,20 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     return this.googleBusinessDelete(args, "delete_media", ["location_id", "media_name"], {
       location_id: args?.location_id,
       media_name: args?.media_name,
+    });
+  }
+
+  private async handleGoogleBusinessSearchKeywords(args: any): Promise<string> {
+    for (const key of ["from_month", "to_month"]) {
+      const value = args?.[key];
+      if (value !== undefined && value !== "" && !/^\d{4}-\d{2}$/.test(String(value))) {
+        throw new Error(`${key} must be YYYY-MM`);
+      }
+    }
+    return this.googleBusinessGet(args, "search_keywords", ["location_id"], {
+      location_id: args?.location_id,
+      from_month: args?.from_month,
+      to_month: args?.to_month,
     });
   }
 
@@ -1763,6 +1906,36 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleGoogleBusinessMediaCreate(args);
       case "google_business_media_delete":
         return await this.handleGoogleBusinessMediaDelete(args);
+      case "google_business_search_keywords":
+        return await this.handleGoogleBusinessSearchKeywords(args);
+      case "dm_chat_thread_control_pass":
+        return await this.handleDmChatThreadControl(args, "pass");
+      case "dm_chat_thread_control_take":
+        return await this.handleDmChatThreadControl(args, "take");
+      case "dm_chat_thread_control_release":
+        return await this.handleDmChatThreadControl(args, "release");
+      case "dm_chat_thread_control_request":
+        return await this.handleDmChatThreadControl(args, "request");
+      case "dm_chat_thread_owner":
+        return await this.handleDmChatThreadOwner(args);
+      case "instagram_collaboration_invites_list":
+        return await this.handleInstagramCollaborationInvitesList(args);
+      case "instagram_collaboration_invite_accept":
+        return await this.handleInstagramCollaborationInviteRespond(args, true);
+      case "instagram_collaboration_invite_decline":
+        return await this.handleInstagramCollaborationInviteRespond(args, false);
+      case "pinterest_board_create":
+        return await this.handlePinterestBoardCreate(args);
+      case "pinterest_board_delete":
+        return await this.handlePinterestBoardDelete(args);
+      case "youtube_playlists_list":
+        return await this.handleYouTubePlaylistsList(args);
+      case "youtube_playlist_create":
+        return await this.handleYouTubePlaylistCreate(args);
+      case "youtube_playlist_update":
+        return await this.handleYouTubePlaylistUpdate(args);
+      case "youtube_playlist_delete":
+        return await this.handleYouTubePlaylistDelete(args);
       case "whatsapp_templates_list":
         return await this.handleWhatsappTemplatesList(args);
       case "whatsapp_template_get":
