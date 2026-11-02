@@ -268,7 +268,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: "upload_create",
     description:
-      "Create a temporary file upload URL for sandboxed environments. Returns a `key`, an `upload_url`, and `expires_in` (seconds). Flow: (1) call this tool, (2) POST the raw file bytes to the returned `upload_url` (valid for `expires_in` seconds), which responds with `{\"url\": \"https://...\"}`, (3) pass that returned `url` in the `media` array of post_publish (or post_update). The upload host is `tmpfiles.postproxy.dev` — that domain must be whitelisted/allowlisted in the sandbox's network egress rules for the upload to succeed. Only use this when running against the remote (hosted) MCP server: if you are running the local (stdio) MCP server, do NOT use this — instead pass local file paths directly in the `media` array, which uploads them via multipart.",
+      "Create a temporary file upload URL for sandboxed environments. Returns a `key`, an `upload_url`, a `browser_url`, `expires_in` (seconds), and `instructions`. Automatic flow: (1) call this tool, (2) POST the file as multipart/form-data in a field named `file` to the returned `upload_url` (valid for `expires_in` seconds), which responds with `{\"url\": \"https://...\"}`, (3) pass that returned `url` in the `media` array of post_publish (or post_update). The upload host is `tmpfiles.postproxy.dev` — that domain must be whitelisted/allowlisted in the sandbox's network egress rules for the upload to succeed. Browser fallback: if you cannot make outbound HTTP requests to that host, cannot access the file bytes, or the automatic upload fails, do not keep retrying — give the user `browser_url` as a clickable link, ask them to upload the file there in their browser and paste the resulting public media URL back into the conversation, then use that URL in the `media` array. Only use this when running against the remote (hosted) MCP server: if you are running the local (stdio) MCP server, do NOT use this — instead pass local file paths directly in the `media` array, which uploads them via multipart.",
     annotations: {
       title: "Create Upload URL",
       readOnlyHint: false,
@@ -2005,7 +2005,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Accept Instagram Collaboration Invite",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2024,7 +2024,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Decline Instagram Collaboration Invite",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -2633,7 +2633,7 @@ export const TOOL_DEFINITIONS = [
     annotations: {
       title: "Update YouTube Playlist",
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },
@@ -3449,7 +3449,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.18.4",
+      version: "1.18.5",
     },
     {
       capabilities: {

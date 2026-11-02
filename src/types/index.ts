@@ -756,7 +756,13 @@ export interface ReactMessageParams {
 export interface UploadResponse {
   key: string; // signed token to pass in a post's media array
   upload_url: string; // tmpfiles.postproxy.dev URL the file is uploaded to
+  browser_url?: string; // HTML upload form for the user (fallback when the agent can't POST)
   expires_in: number; // seconds until the upload URL expires
+  instructions?: {
+    automatic: string;
+    fallback: string;
+    next_step: string;
+  };
 }
 
 /**

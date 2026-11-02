@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.4";
+const PACKAGE_VERSION = "1.18.5";
 
 // The remote server never asks the user for credentials or one-time codes in
 // chat (OpenAI plugin review treats that as collecting access secrets). Those
