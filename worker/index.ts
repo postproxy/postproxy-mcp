@@ -11,7 +11,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { TOOL_DEFINITIONS } from "../src/server.js";
 import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.5";
+const PACKAGE_VERSION = "1.19.0";
 
 // The remote server never asks the user for credentials or one-time codes in
 // chat (OpenAI plugin review treats that as collecting access secrets). Those
@@ -1304,6 +1304,46 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
     });
   }
 
+  // ─── Facebook Page ────────────────────────────────────────────────
+
+  private static readonly FACEBOOK_PAGE_UPDATE_FIELDS = [
+    "about", "description", "general_info", "company_overview", "mission", "products",
+    "founded", "website", "phone", "emails", "impressum", "price_range",
+  ];
+
+  private async facebookPageGet(args: any, action: string, required: string[] = []): Promise<string> {
+    const { profile_id, ...query } = args ?? {};
+    return this.profileApi(args, "GET", "facebook", action, ["page_id", ...required], { query });
+  }
+
+  private async facebookPageWrite(args: any, method: string, action: string, required: string[] = []): Promise<string> {
+    const { profile_id, ...body } = args ?? {};
+    return this.profileApi(args, method, "facebook", action, ["page_id", ...required], { body });
+  }
+
+  private async handleFacebookPageUpdate(args: any): Promise<string> {
+    if (!PostProxyMCP.FACEBOOK_PAGE_UPDATE_FIELDS.some((field) => args?.[field] !== undefined)) {
+      throw new Error(
+        `At least one field to update is required: ${PostProxyMCP.FACEBOOK_PAGE_UPDATE_FIELDS.join(", ")}`
+      );
+    }
+    return this.facebookPageWrite(args, "PATCH", "update_page");
+  }
+
+  private async handleFacebookReelCollaborators(args: any): Promise<string> {
+    return this.profileApi(args, "GET", "facebook", "reel_collaborators", ["post_id"], {
+      query: { post_id: args?.post_id },
+    });
+  }
+
+  // ─── TikTok ───────────────────────────────────────────────────────
+
+  private async handleTiktokTrendingMusic(args: any): Promise<string> {
+    return this.profileApi(args, "GET", "tiktok", "trending_music", [], {
+      query: { genre: args?.genre, date_range: args?.date_range, country_code: args?.country_code },
+    });
+  }
+
   // ─── Pinterest boards ──────────────────────────────────────────────
 
   private async handlePinterestBoardCreate(args: any): Promise<string> {
@@ -1924,6 +1964,22 @@ export default class PostProxyMCP extends WorkerEntrypoint<Env> {
         return await this.handleInstagramCollaborationInviteRespond(args, true);
       case "instagram_collaboration_invite_decline":
         return await this.handleInstagramCollaborationInviteRespond(args, false);
+      case "facebook_page_get":
+        return await this.facebookPageGet(args, "page");
+      case "facebook_page_update":
+        return await this.handleFacebookPageUpdate(args);
+      case "facebook_reel_collaborators":
+        return await this.handleFacebookReelCollaborators(args);
+      case "facebook_blocked_users_list":
+        return await this.facebookPageGet(args, "blocked_users");
+      case "facebook_blocked_user_status":
+        return await this.facebookPageGet(args, "blocked_user_status", ["user"]);
+      case "facebook_users_block":
+        return await this.facebookPageWrite(args, "POST", "block_users", ["users"]);
+      case "facebook_users_unblock":
+        return await this.facebookPageWrite(args, "POST", "unblock_users", ["users"]);
+      case "tiktok_trending_music":
+        return await this.handleTiktokTrendingMusic(args);
       case "pinterest_board_create":
         return await this.handlePinterestBoardCreate(args);
       case "pinterest_board_delete":

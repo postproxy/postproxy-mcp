@@ -91,6 +91,18 @@ export const CoverSourceSchema = z.string().refine(
 const AltTextSchema = z.union([z.string(), z.array(z.string())]);
 const CountriesSchema = z.union([z.string(), z.array(z.string())]);
 
+// Instagram/Facebook comment-to-DM automation. null turns it off (post_update).
+const CommentDmSchema = z.object({
+  keywords: z.array(z.string().min(1)).min(1, {
+    message: "comment_dm.keywords must contain at least one keyword",
+  }),
+  text: z.string().optional(),
+  public_reply: z.string().optional(),
+  delay_seconds: z.number().int().min(0).max(3600, {
+    message: "comment_dm.delay_seconds must be an integer between 0 and 3600",
+  }).optional(),
+}).passthrough().nullable();
+
 // Instagram parameters validation
 export const InstagramParamsSchema = z.object({
   format: z.enum(["post", "reel", "story"], {
@@ -125,6 +137,7 @@ export const InstagramParamsSchema = z.object({
   disable_comment: z.boolean().optional(),
   location_id: z.string().optional(),
   share_to_feed: z.boolean().optional(),
+  comment_dm: CommentDmSchema.optional(),
 }).passthrough();
 
 // YouTube parameters validation
@@ -166,6 +179,15 @@ export const TikTokParamsSchema = z.object({
   brand_organic_toggle: z.boolean().optional(),
   upload_as_draft: z.boolean().optional(),
   thumb_offset: z.string().optional(),
+  title: z.string().optional(),
+  audio_id: z.string().optional(),
+  audio_volume: z.number().int().min(0).max(100, {
+    message: "TikTok audio_volume must be an integer between 0 and 100",
+  }).optional(),
+  video_volume: z.number().int().min(0).max(100, {
+    message: "TikTok video_volume must be an integer between 0 and 100",
+  }).optional(),
+  strip_audio: z.boolean().optional(),
 }).passthrough();
 
 // Facebook parameters validation
@@ -180,6 +202,8 @@ export const FacebookParamsSchema = z.object({
   alt_text: AltTextSchema.optional(),
   made_with_ai: z.boolean().optional(),
   countries: CountriesSchema.optional(),
+  collaborators: z.union([z.string(), z.array(z.string())]).optional(),
+  comment_dm: CommentDmSchema.optional(),
 }).passthrough();
 
 // LinkedIn parameters validation

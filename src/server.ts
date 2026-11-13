@@ -88,6 +88,16 @@ import {
   handleInstagramCollaborationInvitesList,
   handleInstagramCollaborationInviteRespond,
 } from "./tools/instagram.js";
+import {
+  handleFacebookPageGet,
+  handleFacebookPageUpdate,
+  handleFacebookReelCollaborators,
+  handleFacebookBlockedUsersList,
+  handleFacebookBlockedUserStatus,
+  handleFacebookUsersBlock,
+  handleFacebookUsersUnblock,
+} from "./tools/facebook.js";
+import { handleTiktokTrendingMusic } from "./tools/tiktok.js";
 import { handlePinterestBoardCreate, handlePinterestBoardDelete } from "./tools/pinterest.js";
 import {
   handleYouTubePlaylistsList,
@@ -330,7 +340,7 @@ export const TOOL_DEFINITIONS = [
           properties: {
             instagram: {
               type: "object",
-              description: "Instagram: format (post|reel|story; story requires empty content), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string, ignored when audio_id is set), audio_id (reel soundtrack from instagram_available_audio; Facebook Login profiles only), audio_volume (integer 1-100, default 100, volume of the attached audio; Facebook Login only), video_volume (integer 1-100, default 100, volume of the video's own sound when audio_id is set; Facebook Login only), strip_audio (bool, reel/video story — removes the video's own audio track before upload; combine with audio_id to play only the music), made_with_ai (bool, disclose AI-generated content), alt_text (string, or array matching media order; images incl. carousel, max 1,000 chars), disable_comment (bool, post/reel — turns comments off right after publishing), location_id (string, post/reel — numeric ID of a Facebook Page that has an address, NOT a place name; on carousels applies to the whole post; stories don't support it; a Page without an address fails the post), share_to_feed (bool, reel — false publishes to the Reels tab only; default shares to feed/grid), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
+              description: "Instagram: format (post|reel|story; story requires empty content), collaborators (array of usernames), first_comment (string), cover_url (reel thumbnail — URL or local file path; local paths are uploaded as cover_file), audio_name (string, ignored when audio_id is set), audio_id (reel soundtrack from instagram_available_audio; Facebook Login profiles only), audio_volume (integer 1-100, default 100, volume of the attached audio; Facebook Login only), video_volume (integer 1-100, default 100, volume of the video's own sound when audio_id is set; Facebook Login only), strip_audio (bool, reel/video story — removes the video's own audio track before upload; combine with audio_id to play only the music), made_with_ai (bool, disclose AI-generated content), alt_text (string, or array matching media order; images incl. carousel, max 1,000 chars), disable_comment (bool, post/reel — turns comments off right after publishing), location_id (string, post/reel — numeric ID of a Facebook Page that has an address, NOT a place name; on carousels applies to the whole post; stories don't support it; a Page without an address fails the post), share_to_feed (bool, reel — false publishes to the Reels tab only; default shares to feed/grid), comment_dm (object, feed posts and reels — DM people who comment a keyword: {keywords: string[] (required; whole-word, typo-tolerant, multi-word keywords must appear in order; keep them distinctive), text (DM text, required unless elements), quick_replies/buttons/card/elements (optional, same as dm_comment_private_reply), public_reply (string, also reply publicly on the comment), delay_seconds (0-3600, default 0)}; one DM per comment, only for comments arriving after it's set, counts toward the engagement quota, requires DMs enabled; add/change/remove on a published post with post_update — null turns it off), trial_strategy (MANUAL|SS_PERFORMANCE), thumb_offset (string in ms), user_tags (array of {username, x, y, media_index} — tag public Instagram accounts on any format; images REQUIRE x and y as floats 0.0-1.0 from the top-left corner, reels and video slides are username-only (coordinates dropped), stories accept coordinates but don't need them; media_index picks the carousel slide 0-based, default 0; a leading @ is stripped; out-of-range coordinates or a media_index past the last media item are rejected with 422; private accounts and accounts with tagging off are silently skipped by Instagram)",
               additionalProperties: true,
             },
             youtube: {
@@ -340,12 +350,12 @@ export const TOOL_DEFINITIONS = [
             },
             tiktok: {
               type: "object",
-              description: "TikTok: format (video|image), privacy_status (PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY), photo_cover_index (integer, image only), auto_add_music (bool, image only), made_with_ai (bool, video only), disable_comment (bool), disable_duet (bool, video only), disable_stitch (bool, video only), brand_content_toggle (bool), brand_organic_toggle (bool), upload_as_draft (bool, send to the creator's TikTok inbox instead of publishing), thumb_offset (string ms, video cover frame; cover_url wins if both set)",
+              description: "TikTok: format (video|image), privacy_status (PUBLIC_TO_EVERYONE|MUTUAL_FOLLOW_FRIENDS|FOLLOWER_OF_CREATOR|SELF_ONLY), photo_cover_index (integer, image only), auto_add_music (bool, image only), made_with_ai (bool, video only), disable_comment (bool), disable_duet (bool, video only), disable_stitch (bool, video only), brand_content_toggle (bool), brand_organic_toggle (bool), upload_as_draft (bool, send to the creator's TikTok inbox instead of publishing), thumb_offset (string ms, video cover frame; cover_url wins if both set), title (string, image only — shown above the caption, max 90 chars, truncated), audio_id (string, video or image — a song_clip_id from tiktok_trending_music; profiles connected on or after 2026-09-30 only; dropped on upload_as_draft), audio_volume (integer 0-100, default 50, video — music volume), video_volume (integer 0-100, video — volume of the video's own audio when audio_id is set), strip_audio (bool, video — remove the video's own audio track before publishing)",
               additionalProperties: true,
             },
             facebook: {
               type: "object",
-              description: "Facebook: format (post|story|reel; story requires empty content), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages), link (string, URL shared as a link post with preview card — text-only, can't be combined with media), alt_text (string or array matching media order), made_with_ai (bool, photo posts only), countries (ISO 3166-1 alpha-2 codes, array or comma-separated string — restrict to viewers in these countries)",
+              description: "Facebook: format (post|story|reel; story requires empty content), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages), link (string, URL shared as a link post with preview card — text-only, can't be combined with media), alt_text (string or array matching media order), made_with_ai (bool, photo posts only), countries (ISO 3166-1 alpha-2 codes, array or comma-separated string — restrict to viewers in these countries), collaborators (reel only — Facebook Page IDs, not usernames, array or comma-separated; each Page gets an invite and the reel appears on it once accepted; 10 invites per Page per 24h; check status with facebook_reel_collaborators), comment_dm (object, feed posts and reels — DM people who comment a keyword: {keywords: string[] (required; whole-word, typo-tolerant, multi-word keywords must appear in order; keep them distinctive), text (DM text, required unless elements), quick_replies/buttons/card/elements (optional, same as dm_comment_private_reply), public_reply (string, also reply publicly on the comment), delay_seconds (0-3600, default 0)}; one DM per comment, only for comments arriving after it's set, counts toward the engagement quota, requires DMs enabled; add/change/remove on a published post with post_update — null turns it off)",
               additionalProperties: true,
             },
             linkedin: {
@@ -462,7 +472,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "post_update",
-    description: "Update an existing post. Only drafts or scheduled posts (more than 5 min before publish) can be updated. Only send fields you want to change — omitted fields are left unchanged.",
+    description: "Update an existing post. Only drafts or scheduled posts (more than 5 min before publish) can be updated — except comment_dm: a published or imported post can be updated by sending only platforms.instagram.comment_dm and/or platforms.facebook.comment_dm (set to null to turn it off). Only send fields you want to change — omitted fields are left unchanged.",
     annotations: {
       title: "Update Post",
       readOnlyHint: false,
@@ -2038,6 +2048,173 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "facebook_page_get",
+    description: "Read a Facebook Page's profile fields — about, description, website, phone, emails, category, follower counts and other contact/company details. This is the Page itself, not posts published to it. Facebook omits fields the Page has never set. Uses Graph API field names.",
+    annotations: {
+      title: "Get Facebook Page",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a Facebook profile" },
+        page_id: { type: "string", description: "Page id — a placement id from profiles_placements" },
+        fields: { type: "string", description: "Comma-separated Graph API Page fields. Defaults to id, name, username, link, category, fan_count, followers_count, about, description, general_info, company_overview, mission, products, founded, website, phone, emails, impressum, price_range" },
+      },
+      required: ["profile_id", "page_id"],
+    },
+  },
+  {
+    name: "facebook_page_update",
+    description: "Update a Facebook Page's profile fields. Send only the fields to change (at least one); omitted fields are left as-is. Returns the updated Page in the same shape as facebook_page_get. Requires a Page role that allows editing Page info, otherwise 403.",
+    annotations: {
+      title: "Update Facebook Page",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a Facebook profile" },
+        page_id: { type: "string", description: "Page id — a placement id from profiles_placements" },
+        about: { type: "string", description: "Short bio, up to 255 characters" },
+        description: { type: "string", description: "Long-form description" },
+        general_info: { type: "string", description: "Additional information" },
+        company_overview: { type: "string", description: "Company overview" },
+        mission: { type: "string", description: "Mission statement" },
+        products: { type: "string", description: "Products" },
+        founded: { type: "string", description: "Founding year or date" },
+        website: { type: "string", description: "Website URL(s), space-separated for more than one" },
+        phone: { type: "string", description: "Contact phone" },
+        emails: { type: "array", items: { type: "string" }, description: "Contact email addresses" },
+        impressum: { type: "string", description: "Legal notice (Impressum)" },
+        price_range: { type: "string", enum: ["$", "$$", "$$$", "$$$$", "Unspecified"], description: "Price range" },
+      },
+      required: ["profile_id", "page_id"],
+    },
+  },
+  {
+    name: "facebook_reel_collaborators",
+    description: "Invite status of the Pages invited through a Facebook reel's collaborators parameter. Returns { post_id, collaborators: [{ name, invite_status (pending|accepted|declined), invitation_link }], fetched_at, cached }. Fetched from Facebook at most once every 5 seconds per reel. 422 if the post isn't a published Facebook reel on this profile.",
+    annotations: {
+      title: "Facebook Reel Collaborators",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a Facebook profile" },
+        post_id: { type: "string", description: "PostProxy post ID of the published reel" },
+      },
+      required: ["profile_id", "post_id"],
+    },
+  },
+  {
+    name: "facebook_blocked_users_list",
+    description: "List people banned from a Facebook Page. Returns { blocked_users: [{ user_id, name }], next_cursor }; paginate with after = next_cursor (null on the last page).",
+    annotations: {
+      title: "List Facebook Blocked Users",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a Facebook profile" },
+        page_id: { type: "string", description: "Page id — a placement id from profiles_placements" },
+        limit: { type: "integer", description: "Page size" },
+        after: { type: "string", description: "Cursor from a previous response's next_cursor" },
+      },
+      required: ["profile_id", "page_id"],
+    },
+  },
+  {
+    name: "facebook_blocked_user_status",
+    description: "Check whether one person is banned from a Facebook Page. Returns { blocked, user_id, name } (name is null when not blocked).",
+    annotations: {
+      title: "Facebook Blocked User Status",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a Facebook profile" },
+        page_id: { type: "string", description: "Page id — a placement id from profiles_placements" },
+        user: { type: "string", description: "Page-scoped user ID — a comment's author_external_id or a chat's participant_external_id on this Page" },
+      },
+      required: ["profile_id", "page_id", "user"],
+    },
+  },
+  {
+    name: "facebook_users_block",
+    description: "Ban up to 50 people from a Facebook Page: they can no longer comment, react, message or post to it. Bans are per Page. Identify people by Page-scoped user ID (a comment's author_external_id or a chat's participant_external_id). Returns { succeeded, failed, action }; IDs Facebook couldn't block are in failed with its reason.",
+    annotations: {
+      title: "Block Facebook Users",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a Facebook profile" },
+        page_id: { type: "string", description: "Page id — a placement id from profiles_placements" },
+        users: { type: "array", items: { type: "string" }, description: "Up to 50 Page-scoped user IDs" },
+      },
+      required: ["profile_id", "page_id", "users"],
+    },
+  },
+  {
+    name: "facebook_users_unblock",
+    description: "Lift Facebook Page bans for up to 50 people. Returns { succeeded, failed, action }.",
+    annotations: {
+      title: "Unblock Facebook Users",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a Facebook profile" },
+        page_id: { type: "string", description: "Page id — a placement id from profiles_placements" },
+        users: { type: "array", items: { type: "string" }, description: "Up to 50 Page-scoped user IDs" },
+      },
+      required: ["profile_id", "page_id", "users"],
+    },
+  },
+  {
+    name: "tiktok_trending_music",
+    description: "List up to 100 trending tracks from TikTok's Commercial Music Library (not paginated; TikTok's field names). To attach one when publishing, pass a song_clip_id — from trending_song_clip (the short popular part) or full_duration_song_clip (whole track) — as platforms.tiktok.audio_id in post_publish. Durations are in seconds. Only for TikTok profiles connected on or after 2026-09-30 (Business API); older connections get 422 until reconnected.",
+    annotations: {
+      title: "TikTok Trending Music",
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        profile_id: { type: "string", description: "Profile hashid of a TikTok profile" },
+        genre: { type: "string", description: "Genre filter, e.g. POP, ROCK, HIP_HOP/RAP, ELECTRONIC, JAZZ. Omit to rank all genres together" },
+        date_range: { type: "string", enum: ["1DAY", "7DAY", "30DAY"], description: "Ranking window (default 7DAY)" },
+        country_code: { type: "string", description: "ISO 3166-1 alpha-2 country whose chart to return (default US)" },
+      },
+      required: ["profile_id"],
+    },
+  },
+  {
     name: "google_business_location_get",
     description: "Read a Google Business Profile location — name, description, website, phones, categories, address, hours, service area, service items, and metadata. This is the business listing itself, not posts published to it. Read this before any google_business_*_update: Google's updates are field-masked, so you patch back objects you fetched here.",
     annotations: {
@@ -3449,7 +3626,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.18.5",
+      version: "1.19.0",
     },
     {
       capabilities: {
@@ -3585,6 +3762,22 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleInstagramCollaborationInviteRespond(client, args as any, true);
         case "instagram_collaboration_invite_decline":
           return await handleInstagramCollaborationInviteRespond(client, args as any, false);
+        case "facebook_page_get":
+          return await handleFacebookPageGet(client, args as any);
+        case "facebook_page_update":
+          return await handleFacebookPageUpdate(client, args as any);
+        case "facebook_reel_collaborators":
+          return await handleFacebookReelCollaborators(client, args as any);
+        case "facebook_blocked_users_list":
+          return await handleFacebookBlockedUsersList(client, args as any);
+        case "facebook_blocked_user_status":
+          return await handleFacebookBlockedUserStatus(client, args as any);
+        case "facebook_users_block":
+          return await handleFacebookUsersBlock(client, args as any);
+        case "facebook_users_unblock":
+          return await handleFacebookUsersUnblock(client, args as any);
+        case "tiktok_trending_music":
+          return await handleTiktokTrendingMusic(client, args as any);
         case "pinterest_board_create":
           return await handlePinterestBoardCreate(client, args as any);
         case "pinterest_board_delete":

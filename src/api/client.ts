@@ -47,7 +47,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.18.5";
+const PACKAGE_VERSION = "1.19.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1575,6 +1575,29 @@ export class PostProxyClient {
       ),
       { media_id: mediaId }
     );
+  }
+
+  // ─── Facebook Page ────────────────────────────────────────────────
+
+  async facebookGet(profileId: string, action: string, query: Record<string, unknown>): Promise<any> {
+    const stringQuery: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null) stringQuery[key] = String(value);
+    }
+    return this.request<any>("GET", this.profilePath(profileId, "facebook", action, stringQuery));
+  }
+
+  async facebookWrite(profileId: string, method: string, action: string, body: any): Promise<any> {
+    return this.request<any>(method, this.profilePath(profileId, "facebook", action), body);
+  }
+
+  // ─── TikTok ───────────────────────────────────────────────────────
+
+  async listTiktokTrendingMusic(
+    profileId: string,
+    query: Record<string, string | undefined>
+  ): Promise<any> {
+    return this.request<any>("GET", this.profilePath(profileId, "tiktok", "trending_music", query));
   }
 
   async getGoogleBusinessSearchKeywords(

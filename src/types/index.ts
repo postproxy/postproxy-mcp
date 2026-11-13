@@ -132,6 +132,21 @@ export interface Post {
 }
 
 /**
+ * Comment-to-DM automation (Instagram and Facebook feed posts and reels).
+ * Pass null on post_update to turn it off.
+ */
+export interface CommentDmParams {
+  keywords: string[]; // Any one matching keyword triggers the DM (whole words, typo-tolerant)
+  text?: string; // DM text; required unless elements is set
+  quick_replies?: unknown[];
+  buttons?: unknown[];
+  card?: Record<string, unknown>;
+  elements?: unknown[];
+  public_reply?: string; // Also reply publicly on the comment
+  delay_seconds?: number; // 0-3600, default 0
+}
+
+/**
  * Platform-specific parameters for Instagram
  */
 export interface InstagramParams {
@@ -152,6 +167,7 @@ export interface InstagramParams {
   disable_comment?: boolean; // Turn comments off right after publishing (posts, reels)
   location_id?: string; // Numeric id of a Facebook Page with an address (posts, reels; not stories)
   share_to_feed?: boolean; // Reels: false publishes to the Reels tab only
+  comment_dm?: CommentDmParams | null; // DM people who comment a keyword (posts, reels)
 }
 
 /**
@@ -184,6 +200,11 @@ export interface TikTokParams {
   brand_organic_toggle?: boolean; // Mark as paid partnership promoting your own brand
   upload_as_draft?: boolean; // Send to the creator's TikTok inbox instead of publishing
   thumb_offset?: string; // Video cover frame in milliseconds
+  title?: string; // Image posts: title above the caption, max 90 chars (truncated)
+  audio_id?: string; // song_clip_id from tiktok_trending_music (Business API profiles)
+  audio_volume?: number; // 0-100, default 50, volume of the attached music (video)
+  video_volume?: number; // 0-100, volume of the video's own audio when audio_id is set
+  strip_audio?: boolean; // Remove the video's own audio track before publishing (video)
 }
 
 /**
@@ -198,6 +219,8 @@ export interface FacebookParams {
   alt_text?: string | string[];
   made_with_ai?: boolean; // Photo posts only
   countries?: string | string[]; // ISO 3166-1 alpha-2 country restriction
+  collaborators?: string | string[]; // Reels: Facebook Page IDs to invite as collaborators
+  comment_dm?: CommentDmParams | null; // DM people who comment a keyword (posts, reels)
 }
 
 /**

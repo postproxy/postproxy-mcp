@@ -1136,6 +1136,27 @@ Publish "Exciting news!" to linkedin and twitter
 
 These only work for Instagram profiles connected through Facebook Login (`profile_groups_initialize_connection` with `onboarding: "facebook"`); Instagram Login profiles return `422`.
 
+### Facebook Page Profile, Reel Collaborators and Blocked Users
+
+| Tool | Description |
+|------|-------------|
+| `facebook_page_get` | Read a Page's profile fields (about, description, website, phone, emails, …); optional `fields` |
+| `facebook_page_update` | Update Page profile fields; send only the ones to change |
+| `facebook_reel_collaborators` | Invite status (`pending`/`accepted`/`declined`) of Pages invited via a reel's `collaborators`, by `post_id` |
+| `facebook_blocked_users_list` | List people banned from the Page (paginate with `after`) |
+| `facebook_blocked_user_status` | Check whether one Page-scoped `user` is banned |
+| `facebook_users_block` / `facebook_users_unblock` | Ban or unban up to 50 Page-scoped user IDs |
+
+Every tool except `facebook_reel_collaborators` takes `page_id` — a placement id from `profiles_placements`. People are identified by Page-scoped user ID: a comment's `author_external_id` or a chat's `participant_external_id` on that Page.
+
+### TikTok Trending Music
+
+| Tool | Description |
+|------|-------------|
+| `tiktok_trending_music` | Up to 100 trending Commercial Music Library tracks (optional `genre`, `date_range` `1DAY`/`7DAY`/`30DAY`, `country_code`) |
+
+Pass a `song_clip_id` (from `trending_song_clip` or `full_duration_song_clip`) as `platforms.tiktok.audio_id` in `post_publish`. Only for TikTok profiles connected on or after 2026-09-30; older connections return `422` until reconnected.
+
 ### Pinterest Boards
 
 | Tool | Description |
@@ -1305,6 +1326,43 @@ Or with explicit parameters:
 }
 ```
 
+**TikTok Video with Trending Music:**
+```json
+{
+  "content": "New drop 🔥",
+  "profiles": ["tiktok"],
+  "media": ["https://example.com/video.mp4"],
+  "platforms": {
+    "tiktok": {
+      "format": "video",
+      "audio_id": "7584037896080918529",
+      "audio_volume": 80,
+      "strip_audio": true
+    }
+  }
+}
+```
+
+#### Comment to DM (Instagram & Facebook)
+
+DM people who comment a keyword on a feed post or reel:
+```json
+{
+  "platforms": {
+    "instagram": {
+      "comment_dm": {
+        "keywords": ["guide", "free ebook"],
+        "text": "Here's your guide: https://example.com/guide",
+        "public_reply": "Sent you a DM!",
+        "delay_seconds": 30
+      }
+    }
+  }
+}
+```
+
+Keywords match whole words, tolerate small typos, and multi-word keywords must appear in order — keep them distinctive. Applies to comments that arrive after it's set; each DM and public reply counts toward the engagement quota. To add, change or remove it on an already-published or imported post, call `post_update` with only `platforms.instagram.comment_dm` / `platforms.facebook.comment_dm` (`null` turns it off).
+
 #### Facebook Examples
 
 **Facebook Post with First Comment:**
@@ -1451,6 +1509,7 @@ Use `profiles_placements` against your Telegram profile to list channel `chat_id
 - `thumb_offset`: String - thumbnail offset in milliseconds for reels
 - `alt_text`: String or array (matching media order) - image alt text, max 1,000 chars
 - `share_to_feed`: Boolean - reels only; `false` publishes to the Reels tab only (default shares to the feed/grid)
+- `comment_dm`: Object - DM people who comment a keyword (posts, reels). See [Comment to DM](#comment-to-dm-instagram--facebook)
 - `disable_comment`: Boolean - turn comments off right after publishing (posts, reels)
 - `location_id`: String - numeric ID of a Facebook Page with an address to tag as the location (posts, reels; not stories)
 - `user_tags`: Array of `{ username, x, y, media_index }` - tag public Instagram accounts on any format (post, reel, story). Images **require** `x` and `y` (floats `0.0`–`1.0` from the top-left corner); reels and video slides are tagged by username only (coordinates are dropped); stories accept coordinates but don't need them. `media_index` picks the carousel slide (0-based, default `0`). A leading `@` is stripped. Out-of-range coordinates, a `media_index` past the last media item, or an image tag missing `x`/`y` are rejected with a 422 naming the entry. Private accounts and accounts with tagging off are silently skipped by Instagram.
@@ -1473,9 +1532,17 @@ Use `profiles_placements` against your Telegram profile to list channel `chat_id
 - `brand_organic_toggle`: Boolean - mark as paid partnership (own brand)
 - `upload_as_draft`: Boolean - send to the creator's TikTok inbox instead of publishing
 - `thumb_offset`: String - video cover frame in milliseconds
+- `title`: String - image posts only; title above the caption, max 90 chars
+- `audio_id`: String - `song_clip_id` from `tiktok_trending_music` (profiles connected on/after 2026-09-30)
+- `audio_volume`: Integer 0-100 (default 50) - music volume (video)
+- `video_volume`: Integer 0-100 - volume of the video's own audio when `audio_id` is set
+- `strip_audio`: Boolean - remove the video's own audio track before publishing (video)
 
 **Facebook:**
-- `format`: "post" | "story"
+- `format`: "post" | "story" | "reel"
+- `title`: String - reel title
+- `collaborators`: Array or comma-separated string - reels only; Facebook Page IDs to invite (check with `facebook_reel_collaborators`)
+- `comment_dm`: Object - DM people who comment a keyword (posts, reels). See [Comment to DM](#comment-to-dm-instagram--facebook)
 - `first_comment`: String - comment to add after posting
 - `page_id`: String - page ID for posting to company pages
 - `link`: String - URL shared as a link post with preview card (text-only)
