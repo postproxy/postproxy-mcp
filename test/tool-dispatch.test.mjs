@@ -85,6 +85,11 @@ test('tools that publish or send to third-party platforms are marked destructive
     'whatsapp_display_name_request_change', 'whatsapp_username_set', 'whatsapp_group_update',
     'whatsapp_group_participants_remove', 'whatsapp_group_invite_link_create', 'whatsapp_group_join_requests_reject',
     'dm_message_react', 'comments_like', 'whatsapp_users_block',
+    'ads_post_boost', 'ads_ad_create', 'ads_campaign_create', 'ads_ad_set_create',
+    'ads_ad_update', 'ads_ad_set_update', 'ads_campaign_update', 'ads_campaigns_update_statuses',
+    'ads_ad_resume', 'ads_ad_set_resume', 'ads_campaign_resume',
+    'ads_ad_delete', 'ads_ad_set_delete', 'ads_campaign_delete',
+    'ads_keywords_create', 'ads_keyword_update', 'ads_keyword_delete',
   ];
   for (const name of irreversible) {
     const tool = TOOL_DEFINITIONS.find((t) => t.name === name);
@@ -125,4 +130,46 @@ test('instagram reel audio params pass local validation', async () => {
   }).success);
   assert.equal(PostPublishSchema.safeParse({ ...base, platforms: { instagram: { audio_volume: 0 } } }).success, false);
   assert.equal(PostPublishSchema.safeParse({ ...base, platforms: { instagram: { video_volume: 101 } } }).success, false);
+});
+
+test('ads tools map onto /ads endpoints and never require profile_id', async () => {
+  const { buildAdsRequest, isAdsTool } = await import(join(root, 'dist/tools/ads-definitions.js'));
+  const ads = TOOL_DEFINITIONS.filter((t) => t.name.startsWith('ads_'));
+  assert.equal(ads.length, 53);
+  for (const tool of ads) {
+    assert.ok(isAdsTool(tool.name), `${tool.name} has no route`);
+    assert.ok(!tool.inputSchema.required.includes('profile_id'), `${tool.name} must not require profile_id`);
+    assert.ok(tool.inputSchema.properties.profile_group_id, `${tool.name} must accept profile_group_id`);
+    const args = Object.fromEntries(tool.inputSchema.required.map((key) => [key, 'x']));
+    const request = buildAdsRequest(tool.name, args);
+    assert.match(request.path, /^\/ads(\/|\?|$)/, `${tool.name} path`);
+    assert.ok(!request.path.includes(':'), `${tool.name} left a path placeholder: ${request.path}`);
+  }
+});
+
+test('ads requests split arguments into path, query, body and headers', async () => {
+  const { buildAdsRequest } = await import(join(root, 'dist/tools/ads-definitions.js'));
+
+  assert.deepEqual(
+    buildAdsRequest('ads_ads_list', { status: ['active', 'paused'], per_page: 10, profile_group_id: 'g1', search: '' }),
+    { method: 'GET', path: '/ads?profile_group_id=g1&status=active%2Cpaused&per_page=10' }
+  );
+  assert.deepEqual(buildAdsRequest('ads_ad_pause', { ad_id: 'K6mHNZ' }), {
+    method: 'POST', path: '/ads/K6mHNZ/pause', body: {},
+  });
+  assert.deepEqual(
+    buildAdsRequest('ads_post_boost', { ad_account_id: '1', post_id: 'p', budget: { amount: 10 }, idempotency_key: 'k' }),
+    {
+      method: 'POST', path: '/ads/boost_post',
+      body: { ad_account_id: '1', post_id: 'p', budget: { amount: 10 } },
+      headers: { 'Idempotency-Key': 'k' },
+    }
+  );
+  assert.equal(
+    buildAdsRequest('ads_keyword_delete', { keyword_id: '12~34', ad_account_id: '9' }).path,
+    '/ads/keywords/12~34?ad_account_id=9'
+  );
+  assert.equal(buildAdsRequest('ads_account_get', { ad_account_id: '9', live: true }).path, '/ads/ad_accounts/9?live=true');
+  assert.deepEqual(buildAdsRequest('ads_campaign_ad_schedule_update', { campaign_id: 'c', schedule: [] }).body, { schedule: [] });
+  assert.throws(() => buildAdsRequest('ads_campaign_get', {}), /campaign_id is required/);
 });

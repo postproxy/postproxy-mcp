@@ -47,7 +47,7 @@ import { createError, ErrorCodes, formatError, type ErrorCode } from "../utils/e
 import { log, logError } from "../utils/logger.js";
 import { isFilePath } from "../utils/validation.js";
 
-const PACKAGE_VERSION = "1.19.0";
+const PACKAGE_VERSION = "1.20.0";
 const USER_AGENT = `postproxy-mcp/${PACKAGE_VERSION} (node ${process.version}; ${process.platform})`;
 
 export class PostProxyClient {
@@ -1589,6 +1589,18 @@ export class PostProxyClient {
 
   async facebookWrite(profileId: string, method: string, action: string, body: any): Promise<any> {
     return this.request<any>(method, this.profilePath(profileId, "facebook", action), body);
+  }
+
+  // ─── Ads ──────────────────────────────────────────────────────────
+
+  /** Send a request built by buildAdsRequest (src/tools/ads-definitions.ts). */
+  async adsRequest(
+    method: string,
+    path: string,
+    body?: Record<string, unknown>,
+    headers?: Record<string, string>
+  ): Promise<any> {
+    return this.request<any>(method, path, body, headers);
   }
 
   // ─── TikTok ───────────────────────────────────────────────────────

@@ -151,6 +151,9 @@ import { logToolCall } from "./utils/logger.js";
  * Tool definitions for the PostProxy MCP server.
  * Exported for potential reuse in other contexts (e.g., Cloudflare Workers).
  */
+import { handleAdsTool } from "./tools/ads.js";
+import { ADS_TOOL_DEFINITIONS } from "./tools/ads-definitions.js";
+
 export const TOOL_DEFINITIONS = [
   {
     name: "auth_status",
@@ -3620,13 +3623,14 @@ export const TOOL_DEFINITIONS = [
       required: ["profile_id", "event_name", "event_id"],
     },
   },
+  ...ADS_TOOL_DEFINITIONS,
 ] as const;
 
 export async function createMCPServer(client: PostProxyClient): Promise<Server> {
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.19.0",
+      version: "1.20.0",
     },
     {
       capabilities: {
@@ -3906,6 +3910,60 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
           return await handleWhatsappDatasetCreate(client, args as any);
         case "whatsapp_conversion_event_send":
           return await handleWhatsappConversionEventSend(client, args as any);
+        case "ads_account_get":
+        case "ads_account_health":
+        case "ads_accounts_list":
+        case "ads_ad_analytics":
+        case "ads_ad_archive":
+        case "ads_ad_create":
+        case "ads_ad_delete":
+        case "ads_ad_get":
+        case "ads_ad_pause":
+        case "ads_ad_preview":
+        case "ads_ad_resume":
+        case "ads_ad_review":
+        case "ads_ad_set_analytics":
+        case "ads_ad_set_archive":
+        case "ads_ad_set_create":
+        case "ads_ad_set_delete":
+        case "ads_ad_set_get":
+        case "ads_ad_set_pause":
+        case "ads_ad_set_resume":
+        case "ads_ad_set_update":
+        case "ads_ad_sets_list":
+        case "ads_ad_update":
+        case "ads_ads_list":
+        case "ads_campaign_ad_schedule_get":
+        case "ads_campaign_ad_schedule_update":
+        case "ads_campaign_analytics":
+        case "ads_campaign_archive":
+        case "ads_campaign_create":
+        case "ads_campaign_delete":
+        case "ads_campaign_get":
+        case "ads_campaign_pause":
+        case "ads_campaign_resume":
+        case "ads_campaign_targeting_get":
+        case "ads_campaign_targeting_update":
+        case "ads_campaign_update":
+        case "ads_campaigns_list":
+        case "ads_campaigns_update_statuses":
+        case "ads_dsa_recommendations":
+        case "ads_insights":
+        case "ads_keyword_delete":
+        case "ads_keyword_historical_metrics":
+        case "ads_keyword_ideas_generate":
+        case "ads_keyword_update":
+        case "ads_keywords_create":
+        case "ads_keywords_list":
+        case "ads_negative_keyword_delete":
+        case "ads_negative_keywords_create":
+        case "ads_negative_keywords_list":
+        case "ads_post_boost":
+        case "ads_search_terms_list":
+        case "ads_targeting_browse":
+        case "ads_targeting_search":
+        case "ads_tree":
+          return await handleAdsTool(client, name, args as any);
         default:
           throw createError(ErrorCodes.API_ERROR, `Unknown tool: ${name}`);
       }
