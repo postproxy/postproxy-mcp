@@ -1549,6 +1549,7 @@ Use `profiles_placements` against your Telegram profile to list channel `chat_id
 - `alt_text`: String or array - image alt text
 - `made_with_ai`: Boolean - AI disclosure (photo posts only)
 - `countries`: Array or comma-separated string - ISO country codes to restrict viewers to
+- `location_id`: String - numeric ID of a Facebook Page with an address to tag as the location, the same ID Instagram's `location_id` takes (text, link and photo posts and reels; video feed posts ignore it; not stories)
 
 **LinkedIn:**
 - `format`: "post" | "poll"

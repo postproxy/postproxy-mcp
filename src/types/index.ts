@@ -219,6 +219,7 @@ export interface FacebookParams {
   alt_text?: string | string[];
   made_with_ai?: boolean; // Photo posts only
   countries?: string | string[]; // ISO 3166-1 alpha-2 country restriction
+  location_id?: string | number; // Numeric id of a Facebook Page with an address (text/link/photo posts, reels; ignored on video feed posts; not stories)
   collaborators?: string | string[]; // Reels: Facebook Page IDs to invite as collaborators
   comment_dm?: CommentDmParams | null; // DM people who comment a keyword (posts, reels)
 }

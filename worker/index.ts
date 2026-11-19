@@ -12,7 +12,7 @@ import { TOOL_DEFINITIONS } from "../src/server.js";
 import { hasStoryFormat, validateDmInteractive } from "../src/utils/validation.js";
 import { buildAdsRequest } from "../src/tools/ads-definitions.js";
 
-const PACKAGE_VERSION = "1.20.0";
+const PACKAGE_VERSION = "1.20.1";
 
 // The remote server never asks the user for credentials or one-time codes in
 // chat (OpenAI plugin review treats that as collecting access secrets). Those

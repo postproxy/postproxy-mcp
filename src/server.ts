@@ -358,7 +358,7 @@ export const TOOL_DEFINITIONS = [
             },
             facebook: {
               type: "object",
-              description: "Facebook: format (post|story|reel; story requires empty content), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages), link (string, URL shared as a link post with preview card — text-only, can't be combined with media), alt_text (string or array matching media order), made_with_ai (bool, photo posts only), countries (ISO 3166-1 alpha-2 codes, array or comma-separated string — restrict to viewers in these countries), collaborators (reel only — Facebook Page IDs, not usernames, array or comma-separated; each Page gets an invite and the reel appears on it once accepted; 10 invites per Page per 24h; check status with facebook_reel_collaborators), comment_dm (object, feed posts and reels — DM people who comment a keyword: {keywords: string[] (required; whole-word, typo-tolerant, multi-word keywords must appear in order; keep them distinctive), text (DM text, required unless elements), quick_replies/buttons/card/elements (optional, same as dm_comment_private_reply), public_reply (string, also reply publicly on the comment), delay_seconds (0-3600, default 0)}; one DM per comment, only for comments arriving after it's set, counts toward the engagement quota, requires DMs enabled; add/change/remove on a published post with post_update — null turns it off)",
+              description: "Facebook: format (post|story|reel; story requires empty content), title (string, reel only), first_comment (string), page_id (string, use profiles.placements to get available pages), link (string, URL shared as a link post with preview card — text-only, can't be combined with media), alt_text (string or array matching media order), made_with_ai (bool, photo posts only), countries (ISO 3166-1 alpha-2 codes, array or comma-separated string — restrict to viewers in these countries), location_id (string, post/reel — numeric ID of a Facebook Page that has an address, NOT a place name, same ID Instagram's location_id takes; text, link and photo posts and reels; on multi-photo posts tags the whole post; video feed posts ignore it — publish as a reel to tag a video; stories reject it), collaborators (reel only — Facebook Page IDs, not usernames, array or comma-separated; each Page gets an invite and the reel appears on it once accepted; 10 invites per Page per 24h; check status with facebook_reel_collaborators), comment_dm (object, feed posts and reels — DM people who comment a keyword: {keywords: string[] (required; whole-word, typo-tolerant, multi-word keywords must appear in order; keep them distinctive), text (DM text, required unless elements), quick_replies/buttons/card/elements (optional, same as dm_comment_private_reply), public_reply (string, also reply publicly on the comment), delay_seconds (0-3600, default 0)}; one DM per comment, only for comments arriving after it's set, counts toward the engagement quota, requires DMs enabled; add/change/remove on a published post with post_update — null turns it off)",
               additionalProperties: true,
             },
             linkedin: {
@@ -3630,7 +3630,7 @@ export async function createMCPServer(client: PostProxyClient): Promise<Server> 
   const server = new Server(
     {
       name: "postproxy-mcp",
-      version: "1.20.0",
+      version: "1.20.1",
     },
     {
       capabilities: {

@@ -202,6 +202,7 @@ export const FacebookParamsSchema = z.object({
   alt_text: AltTextSchema.optional(),
   made_with_ai: z.boolean().optional(),
   countries: CountriesSchema.optional(),
+  location_id: z.union([z.string(), z.number().int()]).optional(),
   collaborators: z.union([z.string(), z.array(z.string())]).optional(),
   comment_dm: CommentDmSchema.optional(),
 }).passthrough();
