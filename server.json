@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "dev.postproxy/postproxy",
+  "title": "Postproxy",
+  "description": "Publish, schedule, and manage social media posts across major platforms via the Postproxy API.",
+  "version": "1.20.1",
+  "websiteUrl": "https://postproxy.dev",
+  "repository": {
+    "url": "https://github.com/postproxy/postproxy-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.postproxy.dev/mcp",
+      "headers": [
+        {
+          "name": "X-PostProxy-API-Key",
+          "description": "Your Postproxy API key (from the Postproxy dashboard). Optional: leave blank to authenticate via OAuth (the server supports dynamic client registration) instead.",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
